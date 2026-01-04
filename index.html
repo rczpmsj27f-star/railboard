@@ -2,193 +2,201 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Manchester Piccadilly — Departures</title>
+<title>Departures — Manchester Piccadilly</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
     body {
         margin: 0;
-        background: #000;
-        font-family: "Segoe UI", Arial, sans-serif;
-        color: #fff;
+        background: #0a0f1f;
+        font-family: "Inter", Arial, sans-serif;
+        color: white;
         overflow: hidden;
     }
 
     header {
-        background: #000;
-        color: #f8d648;
-        font-size: 3vw;
-        font-weight: bold;
+        background: #0d132b;
         padding: 20px;
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 2px solid #f8d648;
-    }
-
-    #clock {
         font-size: 2.5vw;
-        font-weight: bold;
-    }
-
-    #board {
-        padding: 20px 30px 120px 30px;
-        font-size: 2.2vw;
-        line-height: 1.6;
-    }
-
-    .row {
-        display: grid;
-        grid-template-columns: 12vw 1fr 12vw 10vw;
-        padding: 10px 0;
-        border-bottom: 1px solid #333;
-        align-items: center;
-    }
-
-    .time {
-        font-weight: bold;
-    }
-
-    .destination {
-        font-weight: bold;
-    }
-
-    .platform {
+        font-weight: 600;
         text-align: center;
-        font-weight: bold;
-        color: #f8d648;
+        border-bottom: 2px solid rgba(255,255,255,0.1);
     }
 
-    .status {
-        text-align: right;
-        font-weight: bold;
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 1.8vw;
     }
 
-    .delayed {
+    th {
+        text-align: left;
+        padding: 10px 20px;
+        font-weight: 500;
+        color: #cfd8ff;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+
+    td {
+        padding: 12px 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        cursor: pointer;
+    }
+
+    tr {
+        transition: background 0.3s ease;
+    }
+
+    tr:hover {
+        background: rgba(255,255,255,0.05);
+    }
+
+    .etd-delayed {
         color: #f8d648;
+        font-weight: 600;
     }
 
     .cancelled {
         color: #ff4d4d;
+        font-weight: 700;
     }
 
-    .arrived {
-        color: #00ff66;
-    }
-
-    #ticker {
+    /* Popup */
+    #popup {
         position: fixed;
-        bottom: 0;
+        top: 0;
+        left: 0;
         width: 100%;
-        background: #000;
-        color: #fff;
-        font-size: 2vw;
-        padding: 10px 0;
-        border-top: 2px solid #f8d648;
-        white-space: nowrap;
-        overflow: hidden;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        display: none;
+        align-items: center;
+        justify-content: center;
     }
 
-    #ticker span {
-        display: inline-block;
-        padding-left: 100%;
-        animation: scroll-left 18s linear infinite;
+    #popup-content {
+        background: #0d132b;
+        padding: 30px;
+        border-radius: 10px;
+        width: 60%;
+        max-height: 70%;
+        overflow-y: auto;
+        font-size: 1.5vw;
     }
 
-    @keyframes scroll-left {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-100%); }
+    #popup h2 {
+        margin-top: 0;
+        color: #f8d648;
+    }
+
+    #close-popup {
+        margin-top: 20px;
+        padding: 10px 20px;
+        background: #f8d648;
+        border: none;
+        border-radius: 5px;
+        font-size: 1.2vw;
+        cursor: pointer;
     }
 </style>
 </head>
 
 <body>
 
-<header>
-    <div>Manchester Piccadilly — Departures</div>
-    <div id="clock">--:--:--</div>
-</header>
+<header>Departures — Manchester Piccadilly</header>
 
-<div id="board">Loading…</div>
+<table>
+    <thead>
+        <tr>
+            <th style="width:15%">Time</th>
+            <th style="width:40%">Destination</th>
+            <th style="width:15%">Platform</th>
+            <th style="width:15%">Expected</th>
+            <th style="width:15%">Operator</th>
+        </tr>
+    </thead>
+    <tbody id="departures"></tbody>
+</table>
 
-<div id="ticker"><span>Loading service information…</span></div>
+<!-- Popup -->
+<div id="popup">
+    <div id="popup-content">
+        <h2>Calling Points</h2>
+        <div id="calling-points"></div>
+        <button id="close-popup">Close</button>
+    </div>
+</div>
 
 <script>
-const WORKER_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=50";
+const WORKER_URL = "https://YOURWORKER.workers.dev/api/departures?crs=MAN&numRows=10";
 
-function updateClock() {
-    const now = new Date();
-    const hh = String(now.getHours()).padStart(2, "0");
-    const mm = String(now.getMinutes()).padStart(2, "0");
-    const ss = String(now.getSeconds()).padStart(2, "0");
-    document.getElementById("clock").textContent = `${hh}:${mm}:${ss}`;
-}
-setInterval(updateClock, 1000);
-updateClock();
-
-function isArrived(status, service) {
-    return (
-        status.toLowerCase() === "arrived" ||
-        status.toLowerCase() === "departed" ||
-        status === "00:00" ||
-        service.ata
-    );
-}
-
-async function loadBoard() {
+async function loadDepartures() {
     try {
         const res = await fetch(WORKER_URL);
         const data = await res.json();
 
-        const board = document.getElementById("board");
-        const ticker = document.getElementById("ticker").querySelector("span");
-        board.innerHTML = "";
+        const tbody = document.getElementById("departures");
+        tbody.innerHTML = "";
 
-        if (!data.trainServices) {
-            board.innerHTML = "<div>No departures available</div>";
-            ticker.innerHTML = "No service alerts.";
-            return;
-        }
+        if (!data.trainServices) return;
 
-        const services = data.trainServices; // SHOW ALL — NO SLICE
+        data.trainServices.slice(0, 10).forEach(service => {
+            const row = document.createElement("tr");
 
-        services.forEach(service => {
-            const time = service.std || "—";
-            const dest = service.destination?.[0]?.locationName || "—";
-            const platform = service.platform || "—";
+            const isCancelled = service.isCancelled;
+            const etd = service.etd;
 
-            let status = service.etd || "—";
-            let statusClass = "";
-
-            if (isArrived(status, service)) {
-                status = "Arrived";
-                statusClass = "arrived";
-            } else if (service.isCancelled) {
-                status = "Cancelled";
-                statusClass = "cancelled";
-            } else if (status !== "On time") {
-                statusClass = "delayed";
-            }
-
-            const row = document.createElement("div");
-            row.className = "row";
             row.innerHTML = `
-                <div class="time">${time}</div>
-                <div class="destination">${dest}</div>
-                <div class="platform">${platform}</div>
-                <div class="status ${statusClass}">${status}</div>
+                <td>${service.std || ""}</td>
+                <td>${service.destination?.[0]?.locationName || ""}</td>
+                <td>${service.platform || ""}</td>
+                <td class="${isCancelled ? "cancelled" : (etd !== "On time" ? "etd-delayed" : "")}">
+                    ${isCancelled ? "Cancelled" : etd}
+                </td>
+                <td>${service.operator || ""}</td>
             `;
-            board.appendChild(row);
+
+            row.onclick = () => showCallingPoints(service);
+
+            tbody.appendChild(row);
         });
 
-        ticker.innerHTML = "No service alerts.";
-
     } catch (err) {
-        console.error("Error loading board:", err);
+        console.error("Error loading departures:", err);
     }
 }
 
-loadBoard();
-setInterval(loadBoard, 30000);
+function showCallingPoints(service) {
+    const popup = document.getElementById("popup");
+    const cpDiv = document.getElementById("calling-points");
+
+    cpDiv.innerHTML = "";
+
+    const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
+
+    cps.forEach(cp => {
+        const line = document.createElement("div");
+        line.style.marginBottom = "8px";
+
+        if (cp.isCancelled) {
+            line.innerHTML = `<span style="color:#ff4d4d;font-weight:700">${cp.locationName} — Cancelled</span>`;
+        } else {
+            line.textContent = `${cp.locationName}  ${cp.st} → ${cp.et}`;
+        }
+
+        cpDiv.appendChild(line);
+    });
+
+    popup.style.display = "flex";
+}
+
+document.getElementById("close-popup").onclick = () => {
+    document.getElementById("popup").style.display = "none";
+};
+
+loadDepartures();
+setInterval(loadDepartures, 30000);
 </script>
 
 </body>
