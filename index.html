@@ -129,7 +129,7 @@
 </div>
 
 <script>
-const WORKER_URL = "https://newrail.trr4qy5vhk.workers.dev/?crs=MAN&numRows=10";
+const WORKER_URL = "https://YOURWORKER.workers.dev/api/departures?crs=MAN&numRows=10";
 
 async function loadDepartures() {
     try {
@@ -139,12 +139,9 @@ async function loadDepartures() {
         const tbody = document.getElementById("departures");
         tbody.innerHTML = "";
 
-        // FIX: your Worker wraps results inside GetDepartureBoardResult
-        const services = data.GetDepartureBoardResult?.trainServices || [];
+        if (!data.trainServices) return;
 
-        if (!services.length) return;
-
-        services.slice(0, 10).forEach(service => {
+        data.trainServices.slice(0, 10).forEach(service => {
             const row = document.createElement("tr");
 
             const isCancelled = service.isCancelled;
