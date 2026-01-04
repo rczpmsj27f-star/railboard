@@ -30,35 +30,50 @@
         font-weight: bold;
     }
 
-    #board-container {
-        position: relative;
-        height: calc(100vh - 160px);
-        overflow: hidden;
-    }
-
     #board {
-        padding: 10px 30px;
+        padding: 20px 30px 120px 30px;
         font-size: 2.2vw;
         line-height: 1.6;
-        transition: transform 1s ease-in-out;
     }
 
     .row {
         display: grid;
-        grid-template-columns: 12vw 1fr 12vw 12vw;
-        padding: 6px 0;
+        grid-template-columns: 12vw 1fr 12vw 10vw;
+        padding: 10px 0;
         border-bottom: 1px solid #333;
         align-items: center;
     }
 
-    .time { font-weight: bold; }
-    .destination { font-weight: bold; }
-    .platform { text-align: center; font-weight: bold; color: #f8d648; }
-    .status { text-align: right; font-weight: bold; }
+    .time {
+        font-weight: bold;
+    }
 
-    .delayed { color: #f8d648; }
-    .cancelled { color: #ff4d4d; }
-    .arrived { color: #00ff66; }
+    .destination {
+        font-weight: bold;
+    }
+
+    .platform {
+        text-align: center;
+        font-weight: bold;
+        color: #f8d648;
+    }
+
+    .status {
+        text-align: right;
+        font-weight: bold;
+    }
+
+    .delayed {
+        color: #f8d648;
+    }
+
+    .cancelled {
+        color: #ff4d4d;
+    }
+
+    .arrived {
+        color: #00ff66;
+    }
 
     #ticker {
         position: fixed;
@@ -93,23 +108,19 @@
     <div id="clock">--:--:--</div>
 </header>
 
-<div id="board-container">
-    <div id="board">Loading…</div>
-</div>
+<div id="board">Loading…</div>
 
 <div id="ticker"><span>Loading service information…</span></div>
 
 <script>
 const WORKER_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=50";
 
-let scrollIndex = 0;
-let rowsPerPage = 10;
-let scrollTimer = null;
-
 function updateClock() {
     const now = new Date();
-    document.getElementById("clock").textContent =
-        now.toLocaleTimeString("en-GB", { hour12: false });
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    document.getElementById("clock").textContent = `${hh}:${mm}:${ss}`;
 }
 setInterval(updateClock, 1000);
 updateClock();
@@ -123,59 +134,26 @@ function isArrived(status, service) {
     );
 }
 
-function computeRowsPerPage() {
-    const container = document.getElementById("board-container");
-    const firstRow = document.querySelector(".row");
-    if (!firstRow) return;
-
-    const containerHeight = container.clientHeight;
-    const rowHeight = firstRow.getBoundingClientRect().height || 50;
-    rowsPerPage = Math.max(3, Math.floor(containerHeight / rowHeight));
-}
-
-function applyScroll() {
-    const board = document.getElementById("board");
-    const rows = document.querySelectorAll(".row");
-    if (!rows.length) return;
-
-    const rowHeight = rows[0].getBoundingClientRect().height || 50;
-    const maxIndex = Math.max(0, rows.length - rowsPerPage);
-
-    if (scrollIndex > maxIndex) scrollIndex = 0;
-
-    board.style.transform = `translateY(${-scrollIndex * rowHeight}px)`;
-}
-
-function startScrollLoop() {
-    if (scrollTimer) clearInterval(scrollTimer);
-    scrollTimer = setInterval(() => {
-        scrollIndex++;
-        applyScroll();
-    }, 4000);
-}
-
 async function loadBoard() {
     try {
         const res = await fetch(WORKER_URL);
         const data = await res.json();
 
-        const services = data?.Envelope?.Body?.GetDepBoardWithDetailsResponse
-            ?.GetStationBoardResult?.trainServices?.service || [];
-
         const board = document.getElementById("board");
         const ticker = document.getElementById("ticker").querySelector("span");
-
         board.innerHTML = "";
 
+        if (!data.trainServices) {
+            board.innerHTML = "<div>No departures available</div>";
+            ticker.innerHTML = "No service alerts.";
+            return;
+        }
+
+        const services = data.trainServices; // SHOW ALL — NO SLICE
+
         services.forEach(service => {
-            let dest = service.destination?.location?.locationName || "—";
-
-            if (dest === "Manchester Piccadilly") {
-                const onward = service.subsequentCallingPoints?.callingPointList?.callingPoint?.[0];
-                if (onward?.locationName) dest = onward.locationName;
-            }
-
             const time = service.std || "—";
+            const dest = service.destination?.[0]?.locationName || "—";
             const platform = service.platform || "—";
 
             let status = service.etd || "—";
@@ -204,23 +182,13 @@ async function loadBoard() {
 
         ticker.innerHTML = "No service alerts.";
 
-        scrollIndex = 0;
-        computeRowsPerPage();
-        applyScroll();
-        startScrollLoop();
-
     } catch (err) {
-        console.error("Board load error:", err);
+        console.error("Error loading board:", err);
     }
 }
 
 loadBoard();
 setInterval(loadBoard, 30000);
-
-window.addEventListener("resize", () => {
-    computeRowsPerPage();
-    applyScroll();
-});
 </script>
 
 </body>
