@@ -83,6 +83,121 @@
         color: #4da6ff;
         margin-top: 10px;
     }
+
+    /* Ticker */
+    #ticker {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        background: #000;
+        color: #fff;
+        font-size: 2vw;
+        padding: 10px 0;
+        overflow: hidden;
+        white-space: nowrap;
+        border-top: 2px solid #f8d648;
+    }
+
+    #ticker span {
+        display: inline-block;
+        padding-left: 100%;
+        animation: scroll-left 18s linear infinite;
+    }
+
+    @keyframes scroll-left {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-100%); }
+    }
+
+    .alert-red {
+        color: #ff4d4d;
+        font-weight: bold;
+    }
+
+    /* Calling points scroll */
+    .calling-scroll {
+        white-space: nowrap;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .calling-scroll span {
+        display: inline-block;
+        padding-left: 100%;
+        animation: scroll-left 18s linear infinite;
+    }
+
+    .catering {
+        color: #ff66cc;
+        font-weight: bold;
+    }
+
+    /* Platform change warning */
+    .platform-warning {
+        color: #ffcc00;
+        font-size: 2.2vw;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+    /* Formation bar */
+    .formation-wrapper {
+        overflow: hidden;
+        width: 100%;
+        margin-top: 10px;
+    }
+
+    .formation-slide {
+        display: inline-flex;
+        gap: 12px;
+        animation: slide-left 18s linear infinite;
+        padding-left: 100%;
+    }
+
+    @keyframes slide-left {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-100%); }
+    }
+
+    .coach-block {
+        text-align: center;
+        font-size: 1.6vw;
+        color: #fff;
+    }
+
+    .coach-letter {
+        font-size: 1.4vw;
+        margin-bottom: 4px;
+        color: #ccc;
+    }
+
+    .carriage {
+        padding: 6px 12px;
+        border-radius: 4px;
+        font-size: 1.6vw;
+        font-weight: bold;
+        background: #1a1a1a;
+        border: 2px solid #555;
+        color: #fff;
+    }
+
+    .carriage.fc {
+        background: #003366;
+        border-color: #66a3ff;
+    }
+
+    .carriage.cycle {
+        background: #004d26;
+        border-color: #33cc66;
+    }
+
+    .fc-label {
+        text-align: center;
+        font-size: 1.4vw;
+        color: #ffd700;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
 </style>
 </head>
 
@@ -94,6 +209,8 @@
 </header>
 
 <div id="board">Loading…</div>
+
+<div id="ticker"><span>Loading service information…</span></div>
 
 <script>
 const WORKER_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=20";
@@ -108,12 +225,61 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+/* Build formation bar */
+function buildFormationBar(service) {
+    const length = service.length || 0;
+
+    let carriages = Array(length).fill("STD");
+
+    if (service.firstClassAvailable) {
+        carriages[0] = "FC";
+    }
+
+    if (service.cycleStorageFlag && length > 1) {
+        carriages[1] = "CYCLE";
+    }
+
+    if (service.isReverseFormation) {
+        carriages.reverse();
+    }
+
+    const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+    let html = "";
+
+    carriages.forEach((type, index) => {
+        const letter = letters[index];
+
+        let block = `<div class="coach-block">
+                        <div class="coach-letter">${letter}</div>`;
+
+        if (type === "FC") {
+            block += `<div class="carriage fc">FC</div>`;
+        } else if (type === "CYCLE") {
+            block += `<div class="carriage cycle">🚲</div>`;
+        } else {
+            block += `<div class="carriage">STD</div>`;
+        }
+
+        block += `</div>`;
+        html += block;
+    });
+
+    return html;
+}
+
+function buildFirstClassLabel(service) {
+    if (!service.firstClassAvailable) return "";
+    return `<div class="fc-label">⭐ FIRST CLASS</div>`;
+}
+
 async function loadPlatform13() {
     try {
         const res = await fetch(WORKER_URL);
         const data = await res.json();
 
         const board = document.getElementById("board");
+        const ticker = document.getElementById("ticker").querySelector("span");
         board.innerHTML = "";
 
         if (!data.trainServices) return;
@@ -121,8 +287,11 @@ async function loadPlatform13() {
         const services = data.trainServices.filter(s => s.platform === "13").slice(0, 2);
         if (services.length === 0) {
             board.innerHTML = `<div>No departures scheduled</div>`;
+            ticker.innerHTML = "No service alerts.";
             return;
         }
+
+        let tickerMessages = [];
 
         services.forEach(service => {
             const origin = service.origin?.[0]?.locationName || "";
@@ -149,24 +318,63 @@ async function loadPlatform13() {
             const length = service.length || "?";
             const operator = service.operator || "Unknown Operator";
             const formation = service.isReverseFormation ? "Reversed" : "Normal";
-            const formationText = `${length} coaches | Formation: ${formation} (includes First Class)`;
+            const formationText = `${length} coaches | Formation: ${formation}`;
 
             const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
-            const cpText = cps.map(cp => `${cp.locationName} (${cp.st})`).join(" → ");
+            const cpText = cps.map(cp => `${cp.locationName} (${cp.st})`).join(", ");
+
+            const cateringAlert = service.adhocAlerts?.find(a => a.toLowerCase().includes("cater")) || null;
+            const cateringText = cateringAlert ? ` <span class="catering">(${cateringAlert})</span>` : "";
+
+            if (service.isCancelled) {
+                tickerMessages.push(`<span class="alert-red">Service to ${destination} CANCELLED</span>`);
+            } else if (status !== "On time") {
+                tickerMessages.push(`<span class="alert-red">${destination} service delayed — expected ${status}</span>`);
+            }
+
+            let platformWarning = "";
+            if (service.platform && service.platform !== "13") {
+                platformWarning = `<div class="platform-warning">⚠ PLATFORM CHANGE — Now departing from Platform ${service.platform}</div>`;
+            }
 
             const block = document.createElement("div");
             block.className = "train-block";
             block.innerHTML = `
+                ${platformWarning}
                 <div class="line2">
                     <div class="left">${timeDue.padEnd(10)}${destination}</div>
                     <div class="right ${statusClass}">${status}</div>
                 </div>
                 <div class="line3">${formationText}</div>
-                <div class="line4">${cpText}</div>
+
+                <div class="formation-direction">
+                    ${service.isReverseFormation ? "🔽 Rear of train" : "🔼 Front of train"}
+                </div>
+
+                ${buildFirstClassLabel(service)}
+
+                <div class="formation-wrapper">
+                    <div class="formation-slide">
+                        ${buildFormationBar(service)}
+                    </div>
+                </div>
+
+                <div class="line4 calling-scroll">
+                    <span>Calling at: ${cpText}${cateringText}</span>
+                </div>
+
                 <div class="line6">${operator}</div>
             `;
             board.appendChild(block);
         });
+
+        const weather = "Weather: Dry, 8°C, light winds.";
+
+        if (tickerMessages.length === 0) {
+            ticker.innerHTML = `${weather} — No service alerts.`;
+        } else {
+            ticker.innerHTML = `${weather} — ` + tickerMessages.join(" — ");
+        }
 
     } catch (err) {
         console.error("Error loading platform board:", err);
