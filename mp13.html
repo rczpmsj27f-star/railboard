@@ -39,7 +39,7 @@
     }
 
     .train-block {
-        margin-bottom: 40px; /* reduced from 60px */
+        margin-bottom: 40px;
     }
 
     .line2 {
@@ -66,6 +66,11 @@
 
     .cancelled {
         color: #ff4d4d;
+    }
+
+    .arrived {
+        color: #00ff66;
+        font-weight: bold;
     }
 
     .expected-red {
@@ -286,8 +291,13 @@ async function loadPlatform13() {
         let status = service.etd || "—";
         let statusClass = "";
         let expectedTime = "";
+        let hasArrived = false;
 
-        if (service.isCancelled) {
+        if (status.toLowerCase() === "arrived" || service.ata) {
+            hasArrived = true;
+            status = "Arrived";
+            statusClass = "arrived";
+        } else if (service.isCancelled) {
             status = "Cancelled";
             statusClass = "cancelled";
         } else if (status !== "On time") {
@@ -378,7 +388,13 @@ async function loadPlatform13() {
             <div class="line6">${operator}</div>
 
             <div style="color:#00cc66; font-size:1.8vw; margin-top:5px;">
-                ${currentLocation ? `Train currently near ${currentLocation}` : ""}
+                ${
+                    hasArrived
+                        ? `Train has arrived at Platform 13`
+                        : currentLocation
+                            ? `Train currently near ${currentLocation}`
+                            : ""
+                }
             </div>
         `;
         board.appendChild(block1);
@@ -409,7 +425,10 @@ async function loadPlatform13() {
             let st2class = "";
             let st2expected = "";
 
-            if (s2.isCancelled) {
+            if (s2.etd?.toLowerCase() === "arrived" || s2.ata) {
+                st2 = "Arrived";
+                st2class = "arrived";
+            } else if (s2.isCancelled) {
                 st2 = "Cancelled";
                 st2class = "cancelled";
             } else if (st2 !== "On time") {
@@ -419,7 +438,7 @@ async function loadPlatform13() {
 
             const block2 = document.createElement("div");
             block2.className = "train-block";
-            block2.style.marginTop = "20px"; /* TWO LINES BELOW LOCATION */
+            block2.style.marginTop = "20px";
             block2.style.marginBottom = "20px";
             block2.innerHTML = `
                 <div class="line2">
