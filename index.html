@@ -81,6 +81,18 @@
       text-align: center;
       font-weight: bold;
     }
+
+    #debug {
+      background: #000;
+      color: #0f0;
+      padding: 20px;
+      font-size: 12px;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      height: 300px;
+      border-top: 2px solid #333;
+      margin-top: 20px;
+    }
   </style>
 </head>
 
@@ -106,24 +118,42 @@
     </table>
   </main>
 
+  <pre id="debug"></pre>
+
   <script>
-    const API_URL = "/api/departures?crs=MAN&numRows=10";
+    const API_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=10";
 
     async function loadBoard() {
       try {
         const res = await fetch(API_URL);
         const data = await res.json();
 
-        // Correct Darwin structure
+        // Show raw JSON for debugging
+        document.getElementById("debug").textContent = JSON.stringify(data, null, 2);
+
+        // Try all known Darwin shapes
         const services =
-          data?.GetStationBoardResult?.trainServices?.service || [];
+          data?.GetStationBoardResult?.trainServices?.service ||
+          data?.GetStationBoardResult?.trainServices ||
+          data?.trainServices?.service ||
+          data?.trainServices ||
+          [];
 
         const tbody = document.getElementById("rows");
         tbody.innerHTML = "";
 
+        if (!Array.isArray(services) || services.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4">No services returned</td></tr>`;
+          return;
+        }
+
         services.forEach(service => {
           const std = service.std || "--";
-          const dest = service.destination?.location?.[0]?.locationName || "Unknown";
+          const dest =
+            service.destination?.location?.[0]?.locationName ||
+            service.destination?.[0]?.locationName ||
+            "Unknown";
+
           const plat = service.platform || "-";
           const etd = service.etd || "Unknown";
 
