@@ -33,7 +33,7 @@
 
     #board {
         padding: 30px;
-        padding-bottom: 120px; /* prevents content hiding behind ticker */
+        padding-bottom: 120px;
         font-size: 2.2vw;
         line-height: 1.6;
     }
@@ -121,11 +121,10 @@
         margin-bottom: 10px;
     }
 
-    /* Formation bar */
     .formation-wrapper {
         margin-top: 10px;
         display: flex;
-        justify-content: flex-start; /* LEFT ALIGNED */
+        justify-content: flex-start;
     }
 
     .formation-bar {
@@ -223,7 +222,6 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-/* Build static formation bar */
 function buildFormationBar(service) {
     const length = service.length || 0;
     let carriages = Array(length).fill("STD");
@@ -264,7 +262,10 @@ async function loadPlatform13() {
 
         if (!data.trainServices) return;
 
-        const services = data.trainServices.filter(s => s.platform === "13").slice(0, 2);
+        const services = data.trainServices
+            .filter(s => s.platform && s.platform.trim().startsWith("13"))
+            .slice(0, 2);
+
         if (services.length === 0) {
             board.innerHTML = `<div>No departures scheduled</div>`;
             ticker.innerHTML = "No service alerts.";
@@ -274,7 +275,7 @@ async function loadPlatform13() {
         let tickerMessages = [];
 
         // -------------------------
-        // TRAIN 1 (FULL DETAILS)
+        // TRAIN 1
         // -------------------------
         const service = services[0];
 
@@ -308,15 +309,12 @@ async function loadPlatform13() {
         const length = service.length || "?";
         const operator = service.operator || "Unknown Operator";
 
-        // Calling points
         const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
         const cpText = cps.map(cp => `${cp.locationName} (${cp.st})`).join(", ");
 
-        // Catering
         const cateringAlert = service.adhocAlerts?.find(a => a.toLowerCase().includes("cater")) || null;
         const cateringText = cateringAlert ? ` <span class="catering">(${cateringAlert})</span>` : "";
 
-        // Delay reason extraction + normalisation
         let delayReasonRaw = service.adhocAlerts?.find(a =>
             a.toLowerCase().includes("delay") ||
             a.toLowerCase().includes("fault") ||
@@ -345,7 +343,6 @@ async function loadPlatform13() {
             delayReason = delayReason.charAt(0).toUpperCase() + delayReason.slice(1);
         }
 
-        // Current train location
         let currentLocation = "";
         if (service.locationName) {
             currentLocation = service.locationName;
@@ -354,9 +351,8 @@ async function loadPlatform13() {
             currentLocation = last?.locationName || "";
         }
 
-        // Platform change warning
         let platformWarning = "";
-        if (service.platform && service.platform !== "13") {
+        if (service.platform && !service.platform.trim().startsWith("13")) {
             platformWarning = `<div class="platform-warning">⚠ PLATFORM CHANGE — Now departing from Platform ${service.platform}</div>`;
         }
 
@@ -399,7 +395,6 @@ async function loadPlatform13() {
         `;
         board.appendChild(block1);
 
-        // Enable scroll only if needed
         setTimeout(() => {
             const cpLine = document.getElementById(`cp-${service.rid}`);
             if (cpLine.scrollWidth > cpLine.clientWidth) {
@@ -409,7 +404,7 @@ async function loadPlatform13() {
         }, 50);
 
         // -------------------------
-        // TRAIN 2 (ONLY LINE 2)
+        // TRAIN 2
         // -------------------------
         if (services.length > 1) {
             const s2 = services[1];
@@ -452,11 +447,7 @@ async function loadPlatform13() {
         // -------------------------
         // TICKER
         // -------------------------
-        if (tickerMessages.length === 0) {
-            ticker.innerHTML = `No service alerts.`;
-        } else {
-            ticker.innerHTML = tickerMessages.join(" — ");
-        }
+        ticker.innerHTML = `No service alerts.`;
 
     } catch (err) {
         console.error("Error loading platform board:", err);
