@@ -67,6 +67,7 @@
         .on-time { color: #00ff88; }
         .delayed { color: #ff8800; }
         .cancelled { color: #ff0033; }
+        .arrived { color: #00aaff; }
 
         .via {
             font-size: 1.1rem;
@@ -87,6 +88,7 @@
             overflow: hidden;
             width: 100%;
             box-sizing: border-box;
+            margin-top: 4px;
         }
 
         .scroll {
@@ -141,20 +143,25 @@
                 const operator = svc.operator || "";
                 const via = svc.destination[0].via || "";
 
-                // Build calling points scroll text
+                // FIXED: calling points extraction (flattened)
                 let callingPoints = "";
                 if (svc.subsequentCallingPoints &&
-                    svc.subsequentCallingPoints.length > 0 &&
-                    svc.subsequentCallingPoints[0].callingPoint) {
+                    svc.subsequentCallingPoints.length > 0) {
 
-                    callingPoints = svc.subsequentCallingPoints[0].callingPoint
-                        .map(cp => cp.locationName)
-                        .join(" • ");
+                    const allPoints = svc.subsequentCallingPoints
+                        .flatMap(group => group.callingPoint || [])
+                        .map(cp => cp.locationName);
+
+                    if (allPoints.length > 0) {
+                        callingPoints = allPoints.join(" • ");
+                    }
                 }
 
+                // Status class
                 let cls = "on-time";
                 if (etd.includes("Delayed")) cls = "delayed";
                 if (etd.includes("Cancelled")) cls = "cancelled";
+                if (etd.includes("Arrived")) cls = "arrived";
 
                 return `
                     <div class="row">
