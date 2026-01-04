@@ -1,176 +1,202 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>LED Board – TransportAPI</title>
+<meta charset="UTF-8">
+<title>Departures — Manchester Piccadilly</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <style>
-        body {
-            background: #000;
-            margin: 0;
-            padding: 20px;
-            font-family: 'Segoe UI', sans-serif;
-            color: #ffcc33;
-        }
+<style>
+    body {
+        margin: 0;
+        background: #0a0f1f;
+        font-family: "Inter", Arial, sans-serif;
+        color: white;
+        overflow: hidden;
+    }
 
-        .board {
-            max-width: 1100px;
-            margin: auto;
-            background: #000;
-            border: 4px solid #222;
-            padding: 20px;
-        }
+    header {
+        background: #0d132b;
+        padding: 20px;
+        font-size: 2.5vw;
+        font-weight: 600;
+        text-align: center;
+        border-bottom: 2px solid rgba(255,255,255,0.1);
+    }
 
-        .header {
-            display: flex;
-            justify-content: space-between;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
-            border-bottom: 3px solid #222;
-        }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 1.8vw;
+    }
 
-        #station {
-            font-size: 2.4rem;
-            font-weight: bold;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            color: #ffcc33;
-        }
+    th {
+        text-align: left;
+        padding: 10px 20px;
+        font-weight: 500;
+        color: #cfd8ff;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
 
-        #clock {
-            font-size: 2.4rem;
-            font-family: monospace;
-            color: #ffcc33;
-        }
+    td {
+        padding: 12px 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        cursor: pointer;
+    }
 
-        .row {
-            display: grid;
-            grid-template-columns: 120px 1fr 80px 160px;
-            padding: 10px 0;
-            border-bottom: 1px solid #111;
-            font-size: 1.4rem;
-            letter-spacing: 1px;
-        }
+    tr {
+        transition: background 0.3s ease;
+    }
 
-        .plat { text-align: center; }
-        .etd { text-align: right; }
+    tr:hover {
+        background: rgba(255,255,255,0.05);
+    }
 
-        .on-time { color: #00ff88; }
-        .delayed { color: #ff8800; }
-        .cancelled { color: #ff0033; }
+    .etd-delayed {
+        color: #f8d648;
+        font-weight: 600;
+    }
 
-        .via {
-            font-size: 1.1rem;
-            color: #ffaa33;
-            margin-top: 4px;
-        }
+    .cancelled {
+        color: #ff4d4d;
+        font-weight: 700;
+    }
 
-        .operator {
-            font-size: 1rem;
-            color: #888;
-            margin-top: 3px;
-        }
+    /* Popup */
+    #popup {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.7);
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
 
-        .calling-points {
-            font-size: 1rem;
-            color: #bbb;
-            white-space: nowrap;
-            overflow: hidden;
-            width: 100%;
-            box-sizing: border-box;
-            margin-top: 4px;
-        }
+    #popup-content {
+        background: #0d132b;
+        padding: 30px;
+        border-radius: 10px;
+        width: 60%;
+        max-height: 70%;
+        overflow-y: auto;
+        font-size: 1.5vw;
+    }
 
-        .scroll {
-            display: inline-block;
-            padding-left: 100%;
-            animation: scroll-left 18s linear infinite;
-        }
+    #popup h2 {
+        margin-top: 0;
+        color: #f8d648;
+    }
 
-        @keyframes scroll-left {
-            from { transform: translateX(0); }
-            to { transform: translateX(-100%); }
-        }
-    </style>
+    #close-popup {
+        margin-top: 20px;
+        padding: 10px 20px;
+        background: #f8d648;
+        border: none;
+        border-radius: 5px;
+        font-size: 1.2vw;
+        cursor: pointer;
+    }
+</style>
 </head>
+
 <body>
 
-<div class="board">
-    <div class="header">
-        <div id="station">Loading…</div>
-        <div id="clock">00:00:00</div>
-    </div>
+<header>Departures — Manchester Piccadilly</header>
 
-    <div id="services">Loading…</div>
+<table>
+    <thead>
+        <tr>
+            <th style="width:15%">Time</th>
+            <th style="width:40%">Destination</th>
+            <th style="width:15%">Platform</th>
+            <th style="width:15%">Expected</th>
+            <th style="width:15%">Operator</th>
+        </tr>
+    </thead>
+    <tbody id="departures"></tbody>
+</table>
+
+<!-- Popup -->
+<div id="popup">
+    <div id="popup-content">
+        <h2>Calling Points</h2>
+        <div id="calling-points"></div>
+        <button id="close-popup">Close</button>
+    </div>
 </div>
 
 <script>
-    const API_BASE = "https://newrail.trr4qy5vhk.workers.dev";
-    const STATION = "MAN";
+const WORKER_URL = "https://YOURWORKER.workers.dev/api/departures?crs=MAN&numRows=10";
 
-    setInterval(() => {
-        document.getElementById("clock").innerText =
-            new Date().toLocaleTimeString("en-GB");
-    }, 1000);
+async function loadDepartures() {
+    try {
+        const res = await fetch(WORKER_URL);
+        const data = await res.json();
 
-    async function fetchJSON(url) {
-        const res = await fetch(url + "?t=" + Date.now());
-        return res.json();
+        const tbody = document.getElementById("departures");
+        tbody.innerHTML = "";
+
+        if (!data.trainServices) return;
+
+        data.trainServices.slice(0, 10).forEach(service => {
+            const row = document.createElement("tr");
+
+            const isCancelled = service.isCancelled;
+            const etd = service.etd;
+
+            row.innerHTML = `
+                <td>${service.std || ""}</td>
+                <td>${service.destination?.[0]?.locationName || ""}</td>
+                <td>${service.platform || ""}</td>
+                <td class="${isCancelled ? "cancelled" : (etd !== "On time" ? "etd-delayed" : "")}">
+                    ${isCancelled ? "Cancelled" : etd}
+                </td>
+                <td>${service.operator || ""}</td>
+            `;
+
+            row.onclick = () => showCallingPoints(service);
+
+            tbody.appendChild(row);
+        });
+
+    } catch (err) {
+        console.error("Error loading departures:", err);
     }
+}
 
-    async function loadDepartures() {
-        const servicesDiv = document.getElementById("services");
+function showCallingPoints(service) {
+    const popup = document.getElementById("popup");
+    const cpDiv = document.getElementById("calling-points");
 
-        try {
-            const data = await fetchJSON(`${API_BASE}/${STATION}`);
+    cpDiv.innerHTML = "";
 
-            document.getElementById("station").innerText =
-                `${data.locationName} (${data.crs})`;
+    const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
 
-            const services = data.trainServices;
+    cps.forEach(cp => {
+        const line = document.createElement("div");
+        line.style.marginBottom = "8px";
 
-            servicesDiv.innerHTML = "";
-
-            for (const svc of services) {
-                let callingPoints = "";
-
-                if (svc.serviceId) {
-                    const details = await fetchJSON(`${API_BASE}/service/${svc.serviceId}`);
-                    callingPoints = details.locations
-                        .map(cp => cp.locationName)
-                        .join(" · ");
-                }
-
-                const cls =
-                    svc.etd.includes("Cancelled") ? "cancelled" :
-                    svc.etd.includes("Delayed") ? "delayed" :
-                    "on-time";
-
-                servicesDiv.innerHTML += `
-                    <div class="row">
-                        <div>${svc.std}</div>
-                        <div>
-                            ${svc.destination[0].locationName}
-                            <div class="operator">${svc.operator}</div>
-                            ${callingPoints ? `
-                                <div class="calling-points">
-                                    <span class="scroll">${callingPoints}</span>
-                                </div>` : ""}
-                        </div>
-                        <div class="plat">${svc.platform}</div>
-                        <div class="etd ${cls}">${svc.etd}</div>
-                    </div>
-                `;
-            }
-
-        } catch (err) {
-            servicesDiv.innerHTML =
-                "<div style='color:#888'>Unable to load live data</div>";
+        if (cp.isCancelled) {
+            line.innerHTML = `<span style="color:#ff4d4d;font-weight:700">${cp.locationName} — Cancelled</span>`;
+        } else {
+            line.textContent = `${cp.locationName}  ${cp.st} → ${cp.et}`;
         }
-    }
 
-    loadDepartures();
-    setInterval(loadDepartures, 15000);
+        cpDiv.appendChild(line);
+    });
+
+    popup.style.display = "flex";
+}
+
+document.getElementById("close-popup").onclick = () => {
+    document.getElementById("popup").style.display = "none";
+};
+
+loadDepartures();
+setInterval(loadDepartures, 30000);
 </script>
 
 </body>
