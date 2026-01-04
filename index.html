@@ -42,25 +42,18 @@
     }
 
     /* Status colours */
-    .ontime {
-      color: #00ff00;
-    }
-    .delayed {
-      color: #ff6600;
-    }
-    .cancelled {
-      color: #ff0000;
-    }
+    .ontime { color: #00ff00; }
+    .delayed { color: #ff6600; }
+    .cancelled { color: #ff0000; }
 
-    /* Scrolling container */
     #scroll-container {
       height: 600px;
       overflow: hidden;
       position: relative;
     }
 
-    #departures {
-      display: block;
+    /* Scrolling animation (disabled by default) */
+    #departures.scrolling {
       animation: scroll 25s linear infinite;
     }
 
@@ -103,6 +96,9 @@
       });
 
       const tbody = document.getElementById("departures");
+
+      // Stop scrolling while updating
+      tbody.classList.remove("scrolling");
       tbody.innerHTML = "";
 
       services.slice(0, 20).forEach(service => {
@@ -110,17 +106,12 @@
         const dest = service.destination[0].locationName || "";
         const plat = service.platform || "-";
 
-        // Status logic
         let status = service.etd || "";
         let statusClass = "";
 
-        if (status === "On time") {
-          statusClass = "ontime";
-        } else if (status === "Cancelled") {
-          statusClass = "cancelled";
-        } else if (status.match(/^[0-9]{2}:[0-9]{2}$/)) {
-          statusClass = "delayed"; // ETD is a time → delayed
-        }
+        if (status === "On time") statusClass = "ontime";
+        else if (status === "Cancelled") statusClass = "cancelled";
+        else if (/^[0-9]{2}:[0-9]{2}$/.test(status)) statusClass = "delayed";
 
         const row = document.createElement("tr");
         row.innerHTML = `
@@ -131,10 +122,15 @@
         `;
         tbody.appendChild(row);
       });
+
+      // Restart scrolling AFTER rows are inserted
+      setTimeout(() => {
+        tbody.classList.add("scrolling");
+      }, 500);
     }
 
     loadDepartures();
-    setInterval(loadDepartures, 30000); // refresh every 30s
+    setInterval(loadDepartures, 30000);
   </script>
 
 </body>
