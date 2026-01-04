@@ -114,13 +114,16 @@
         const res = await fetch(API_URL);
         const data = await res.json();
 
-        const services = data?.trainServices || [];
+        // Correct Darwin structure
+        const services =
+          data?.GetStationBoardResult?.trainServices?.service || [];
+
         const tbody = document.getElementById("rows");
         tbody.innerHTML = "";
 
         services.forEach(service => {
           const std = service.std || "--";
-          const dest = service.destination?.[0]?.locationName || "Unknown";
+          const dest = service.destination?.location?.[0]?.locationName || "Unknown";
           const plat = service.platform || "-";
           const etd = service.etd || "Unknown";
 
@@ -149,7 +152,7 @@
     }
 
     loadBoard();
-    setInterval(loadBoard, 30000); // refresh every 30s
+    setInterval(loadBoard, 30000);
   </script>
 
 </body>
