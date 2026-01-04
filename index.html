@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>LED Board – Universal</title>
+    <title>LED Board – Calling Points</title>
 
     <style>
         body {
@@ -107,10 +107,7 @@
 
 <script>
     const API_BASE = "https://newrail.trr4qy5vhk.workers.dev";
-
-    // CHANGE THIS TO ANY CRS CODE
-    const STATION = "MAN";  
-    // Examples: "LIV", "EUS", "BHM", "BTN", "GLC", "KGX"
+    const STATION = "MAN";  // Change to any CRS code
 
     // Clock
     setInterval(() => {
@@ -118,7 +115,7 @@
             new Date().toLocaleTimeString("en-GB");
     }, 1000);
 
-    // FIXED: Safe URL builder
+    // Safe fetch with timestamp
     async function fetchJSON(url) {
         const fullUrl = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
         const res = await fetch(fullUrl);
@@ -131,7 +128,6 @@
         try {
             const data = await fetchJSON(`${API_BASE}/${STATION}?expand=false`);
 
-            // Auto-detect station name
             document.getElementById("station").innerText = data.locationName;
 
             if (!data.trainServices || data.trainServices.length === 0) {
@@ -139,20 +135,7 @@
                 return;
             }
 
-            const currentCRS = data.crs;
-            const currentName = data.locationName;
-
-            // FIXED: Safe detailed fetch
-            const detailed = await Promise.all(
-                data.trainServices.map(svc =>
-                    fetchJSON(`${API_BASE}/service/${svc.serviceIdPercentEncoded}?expand=true`)
-                        .catch(() => null)
-                )
-            );
-
-            servicesDiv.innerHTML = data.trainServices.map((svc, i) => {
-                const detail = detailed[i];
-
+            servicesDiv.innerHTML = data.trainServices.map(svc => {
                 const dest = svc.destination[0].locationName;
                 const std = svc.std;
                 const etd = svc.etd;
@@ -160,32 +143,15 @@
                 const operator = svc.operator || "";
                 const via = svc.destination[0].via || "";
 
-                // FIXED: Robust calling points
+                // ⭐ Calling points from subsequentCallingPoints
                 let callingPoints = "";
+                if (svc.subsequentCallingPoints &&
+                    svc.subsequentCallingPoints.length > 0 &&
+                    svc.subsequentCallingPoints[0].callingPoint) {
 
-                if (detail && detail.locations) {
-                    let idx = detail.locations.findIndex(
-                        loc => loc.crs &&
-                               loc.crs.toUpperCase() === currentCRS.toUpperCase()
-                    );
-
-                    if (idx === -1) {
-                        idx = detail.locations.findIndex(
-                            loc => loc.locationName &&
-                                   loc.locationName.toLowerCase() === currentName.toLowerCase()
-                        );
-                    }
-
-                    if (idx === -1) idx = 0;
-
-                    const future = detail.locations
-                        .slice(idx + 1)
-                        .map(loc => loc.locationName)
-                        .filter(Boolean);
-
-                    if (future.length > 0) {
-                        callingPoints = future.join(" · ");
-                    }
+                    callingPoints = svc.subsequentCallingPoints[0].callingPoint
+                        .map(cp => cp.locationName)
+                        .join(" · ");
                 }
 
                 let cls = "on-time";
