@@ -244,6 +244,27 @@ function buildFirstClassLabel(service) {
     return `<div class="fc-label">⭐ FIRST CLASS</div>`;
 }
 
+function getAccurateLocation(service) {
+    // 1. Live Darwin "present location"
+    if (service.locationName) return service.locationName;
+
+    // 2. Most recent passed station
+    if (service.previousCallingPoints?.length > 0) {
+        const groups = service.previousCallingPoints;
+        const lastGroup = groups[groups.length - 1];
+        const lastPoint = lastGroup.callingPoint[lastGroup.callingPoint.length - 1];
+        if (lastPoint?.locationName) return lastPoint.locationName;
+    }
+
+    // 3. Fallback: approaching next station
+    if (service.subsequentCallingPoints?.length > 0) {
+        const next = service.subsequentCallingPoints[0].callingPoint[0];
+        if (next?.locationName) return `approaching ${next.locationName}`;
+    }
+
+    return "";
+}
+
 async function loadPlatform13() {
     try {
         const res = await fetch(WORKER_URL);
@@ -337,19 +358,13 @@ async function loadPlatform13() {
             delayReason = delayReason.charAt(0).toUpperCase() + delayReason.slice(1);
         }
 
-        let currentLocation = "";
-        if (service.locationName) {
-            currentLocation = service.locationName;
-        } else if (service.previousCallingPoints?.[0]?.callingPoint) {
-            const last = service.previousCallingPoints[0].callingPoint.slice(-1)[0];
-            currentLocation = last?.locationName || "";
-        }
+        const currentLocation = getAccurateLocation(service);
 
         const block1 = document.createElement("div");
         block1.className = "train-block";
         block1.innerHTML = `
             <div class="line2">
-                <div class="left">${timeDue.padEnd(10)}${destination} (Platform ${platform})</div>
+                <div class="left">${timeDue.padEnd(10)}${destination}</div>
                 <div class="right ${statusClass}">${expectedTime || status}</div>
             </div>
 
@@ -372,12 +387,14 @@ async function loadPlatform13() {
                 ${operator}
                 ${
                     hasArrived
-                        ? ` | Train has arrived at Platform 13`
+                        ? ` | <span style="color:#00ff66;">Train has arrived at Platform 13</span>`
                         : currentLocation
-                            ? ` | Train currently near ${currentLocation}`
+                            ? ` | <span style="color:#00ff66;">Train currently near ${currentLocation}</span>`
                             : ""
                 }
             </div>
+
+            <div style="height:3px; background:#f8d648; margin:10px 0;"></div>
         `;
         board.appendChild(block1);
 
@@ -425,7 +442,7 @@ async function loadPlatform13() {
             block2.style.marginBottom = "20px";
             block2.innerHTML = `
                 <div class="line2">
-                    <div class="left">${t2.padEnd(10)}${dest2} (Platform ${platform2})</div>
+                    <div class="left">${t2.padEnd(10)}${dest2}</div>
                     <div class="right ${st2class}">${st2expected || st2}</div>
                 </div>
             `;
@@ -468,7 +485,7 @@ async function loadPlatform13() {
             block3.style.marginBottom = "20px";
             block3.innerHTML = `
                 <div class="line2">
-                    <div class="left">${t3.padEnd(10)}${dest3} (Platform ${platform3})</div>
+                    <div class="left">${t3.padEnd(10)}${dest3}</div>
                     <div class="right ${st3class}">${st3expected || st3}</div>
                 </div>
             `;
@@ -488,4 +505,3 @@ setInterval(loadPlatform13, 30000);
 
 </body>
 </html>
-    
