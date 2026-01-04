@@ -168,7 +168,6 @@
         margin-bottom: 5px;
     }
 
-    /* Ticker */
     #ticker {
         position: fixed;
         bottom: 0;
@@ -222,39 +221,21 @@ updateClock();
 /* Build static formation bar */
 function buildFormationBar(service) {
     const length = service.length || 0;
-
     let carriages = Array(length).fill("STD");
 
-    if (service.firstClassAvailable) {
-        carriages[0] = "FC";
-    }
-
-    if (service.cycleStorageFlag && length > 1) {
-        carriages[1] = "CYCLE";
-    }
-
-    if (service.isReverseFormation) {
-        carriages.reverse();
-    }
+    if (service.firstClassAvailable) carriages[0] = "FC";
+    if (service.cycleStorageFlag && length > 1) carriages[1] = "CYCLE";
+    if (service.isReverseFormation) carriages.reverse();
 
     const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
-
     let html = "";
 
     carriages.forEach((type, index) => {
         const letter = letters[index];
-
-        let block = `<div class="coach-block">
-                        <div class="coach-letter">${letter}</div>`;
-
-        if (type === "FC") {
-            block += `<div class="carriage fc">FC</div>`;
-        } else if (type === "CYCLE") {
-            block += `<div class="carriage cycle">🚲</div>`;
-        } else {
-            block += `<div class="carriage">STD</div>`;
-        }
-
+        let block = `<div class="coach-block"><div class="coach-letter">${letter}</div>`;
+        if (type === "FC") block += `<div class="carriage fc">FC</div>`;
+        else if (type === "CYCLE") block += `<div class="carriage cycle">🚲</div>`;
+        else block += `<div class="carriage">STD</div>`;
         block += `</div>`;
         html += block;
     });
@@ -287,89 +268,170 @@ async function loadPlatform13() {
 
         let tickerMessages = [];
 
-        services.forEach(service => {
-            const destinationRaw = service.destination?.[0]?.locationName || "";
-            const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
+        // -------------------------
+        // TRAIN 1 (FULL DETAILS)
+        // -------------------------
+        const service = services[0];
 
-            let destination = destinationRaw;
-            if (destinationRaw === "Manchester Piccadilly" && hasOnward) {
-                const onward = service.subsequentCallingPoints[0].callingPoint[0].locationName;
-                if (onward) destination = onward;
+        const destinationRaw = service.destination?.[0]?.locationName || "";
+        const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
+
+        let destination = destinationRaw;
+        if (destinationRaw === "Manchester Piccadilly" && hasOnward) {
+            const onward = service.subsequentCallingPoints[0].callingPoint[0].locationName;
+            if (onward) destination = onward;
+        }
+
+        const timeDue = service.std || "—";
+        let status = service.etd || "—";
+        let statusClass = "";
+        let expectedTime = "";
+
+        if (service.isCancelled) {
+            status = "Cancelled";
+            statusClass = "cancelled";
+        } else if (status !== "On time") {
+            expectedTime = `<span class="expected-red">${status}</span>`;
+            statusClass = "delayed";
+        }
+
+        const length = service.length || "?";
+        const operator = service.operator || "Unknown Operator";
+
+        // Calling points
+        const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
+        const cpText = cps.map(cp => `${cp.locationName} (${cp.st})`).join(", ");
+
+        // Catering
+        const cateringAlert = service.adhocAlerts?.find(a => a.toLowerCase().includes("cater")) || null;
+        const cateringText = cateringAlert ? ` <span class="catering">(${cateringAlert})</span>` : "";
+
+        // Delay reason extraction + normalisation
+        let delayReasonRaw = service.adhocAlerts?.find(a =>
+            a.toLowerCase().includes("delay") ||
+            a.toLowerCase().includes("fault") ||
+            a.toLowerCase().includes("signal") ||
+            a.toLowerCase().includes("problem") ||
+            a.toLowerCase().includes("incident") ||
+            a.toLowerCase().includes("disruption")
+        );
+
+        let delayReason = "";
+        if (delayReasonRaw) {
+            delayReason = delayReasonRaw
+                .replace(/this train has been delayed due to/i, "")
+                .replace(/delayed due to/i, "")
+                .replace(/delay due to/i, "")
+                .replace(/delayed because of/i, "")
+                .replace(/delayed because/i, "")
+                .replace(/service delayed due to/i, "")
+                .replace(/service delayed because/i, "")
+                .replace(/because of/i, "")
+                .replace(/because/i, "")
+                .replace(/due to/i, "")
+                .trim();
+
+            delayReason = delayReason.replace(/[.,;:]+$/, "");
+            delayReason = delayReason.charAt(0).toUpperCase() + delayReason.slice(1);
+        }
+
+        // Current train location
+        let currentLocation = "";
+        if (service.locationName) {
+            currentLocation = service.locationName;
+        } else if (service.previousCallingPoints?.[0]?.callingPoint) {
+            const last = service.previousCallingPoints[0].callingPoint.slice(-1)[0];
+            currentLocation = last?.locationName || "";
+        }
+
+        // Platform change warning
+        let platformWarning = "";
+        if (service.platform && service.platform !== "13") {
+            platformWarning = `<div class="platform-warning">⚠ PLATFORM CHANGE — Now departing from Platform ${service.platform}</div>`;
+        }
+
+        const block1 = document.createElement("div");
+        block1.className = "train-block";
+        block1.innerHTML = `
+            ${platformWarning}
+
+            <div class="line2">
+                <div class="left">${timeDue.padEnd(10)}${destination}</div>
+                <div class="right ${statusClass}">${expectedTime || status}</div>
+            </div>
+
+            <div class="line3">This train is made of ${length} coaches</div>
+
+            ${buildFirstClassLabel(service)}
+
+            <div class="formation-wrapper">
+                <div class="formation-bar">
+                    ${buildFormationBar(service)}
+                </div>
+            </div>
+
+            <div class="line4" id="cp-${service.rid}">
+                Calling at: ${cpText}${cateringText}
+                ${delayReason ? ` | <span class="expected-red">⏱ This train has been delayed due to ${delayReason}</span>` : ""}
+            </div>
+
+            <div class="line6">${operator}</div>
+
+            <div style="color:#00cc66; font-size:1.8vw; margin-top:5px;">
+                ${currentLocation ? `Train currently near ${currentLocation}` : ""}
+            </div>
+        `;
+        board.appendChild(block1);
+
+        // Enable scroll only if needed
+        setTimeout(() => {
+            const cpLine = document.getElementById(`cp-${service.rid}`);
+            if (cpLine.scrollWidth > cpLine.clientWidth) {
+                cpLine.classList.add("scroll");
+                cpLine.innerHTML = `<span>${cpLine.innerText}</span>`;
+            }
+        }, 50);
+
+        // -------------------------
+        // TRAIN 2 (ONLY LINE 2)
+        // -------------------------
+        if (services.length > 1) {
+            const s2 = services[1];
+
+            const dest2raw = s2.destination?.[0]?.locationName || "";
+            let dest2 = dest2raw;
+            if (dest2raw === "Manchester Piccadilly" && s2.subsequentCallingPoints?.[0]?.callingPoint?.length > 0) {
+                dest2 = s2.subsequentCallingPoints[0].callingPoint[0].locationName;
             }
 
-            const timeDue = service.std || "—";
-            let status = service.etd || "—";
-            let statusClass = "";
-            let expectedTime = "";
+            const t2 = s2.std || "—";
+            let st2 = s2.etd || "—";
+            let st2class = "";
+            let st2expected = "";
 
-            if (service.isCancelled) {
-                status = "Cancelled";
-                statusClass = "cancelled";
-            } else if (status !== "On time") {
-                expectedTime = `<span class="expected-red">${status}</span>`;
-                statusClass = "delayed";
+            if (s2.isCancelled) {
+                st2 = "Cancelled";
+                st2class = "cancelled";
+            } else if (st2 !== "On time") {
+                st2expected = `<span class="expected-red">${st2}</span>`;
+                st2class = "delayed";
             }
 
-            const length = service.length || "?";
-            const operator = service.operator || "Unknown Operator";
-            const formation = service.isReverseFormation ? "Reversed" : "Normal";
-            const formationText = `${length} coaches | Formation: ${formation} (${service.isReverseFormation ? "🔽 Rear" : "🔼 Front"})`;
-
-            const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
-            const cpText = cps.map(cp => `${cp.locationName} (${cp.st})`).join(", ");
-
-            const cateringAlert = service.adhocAlerts?.find(a => a.toLowerCase().includes("cater")) || null;
-            const cateringText = cateringAlert ? ` <span class="catering">(${cateringAlert})</span>` : "";
-
-            if (service.isCancelled) {
-                tickerMessages.push(`<span class="alert-red">Service to ${destination} CANCELLED</span>`);
-            } else if (status !== "On time") {
-                tickerMessages.push(`<span class="alert-red">${destination} service delayed — expected ${status}</span>`);
-            }
-
-            let platformWarning = "";
-            if (service.platform && service.platform !== "13") {
-                platformWarning = `<div class="platform-warning">⚠ PLATFORM CHANGE — Now departing from Platform ${service.platform}</div>`;
-            }
-
-            const block = document.createElement("div");
-            block.className = "train-block";
-            block.innerHTML = `
-                ${platformWarning}
+            const block2 = document.createElement("div");
+            block2.className = "train-block";
+            block2.style.marginBottom = "20px";
+            block2.innerHTML = `
                 <div class="line2">
-                    <div class="left">${timeDue.padEnd(10)}${destination}</div>
-                    <div class="right ${statusClass}">${expectedTime || status}</div>
+                    <div class="left">${t2.padEnd(10)}${dest2}</div>
+                    <div class="right ${st2class}">${st2expected || st2}</div>
                 </div>
-
-                <div class="line3">${formationText}</div>
-
-                ${buildFirstClassLabel(service)}
-
-                <div class="formation-wrapper">
-                    <div class="formation-bar">
-                        ${buildFormationBar(service)}
-                    </div>
-                </div>
-
-                <div class="line4" id="cp-${service.rid}">
-                    Calling at: ${cpText}${cateringText}
-                </div>
-
-                <div class="line6">${operator}</div>
             `;
-            board.appendChild(block);
+            board.appendChild(block2);
+        }
 
-            // Enable scroll only if needed
-            setTimeout(() => {
-                const cpLine = document.getElementById(`cp-${service.rid}`);
-                if (cpLine.scrollWidth > cpLine.clientWidth) {
-                    cpLine.classList.add("scroll");
-                    cpLine.innerHTML = `<span>${cpLine.innerText}</span>`;
-                }
-            }, 50);
-        });
-
-        // Ticker (service alerts only)
+        // -------------------------
+        // TICKER
+        // -------------------------
         if (tickerMessages.length === 0) {
             ticker.innerHTML = `No service alerts.`;
         } else {
