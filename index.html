@@ -118,8 +118,10 @@
             new Date().toLocaleTimeString("en-GB");
     }, 1000);
 
+    // FIXED: Safe URL builder
     async function fetchJSON(url) {
-        const res = await fetch(url + "&t=" + Date.now());
+        const fullUrl = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
+        const res = await fetch(fullUrl);
         return res.json();
     }
 
@@ -140,7 +142,7 @@
             const currentCRS = data.crs;
             const currentName = data.locationName;
 
-            // Fetch detailed service info for each train
+            // FIXED: Safe detailed fetch
             const detailed = await Promise.all(
                 data.trainServices.map(svc =>
                     fetchJSON(`${API_BASE}/service/${svc.serviceIdPercentEncoded}?expand=true`)
@@ -158,17 +160,15 @@
                 const operator = svc.operator || "";
                 const via = svc.destination[0].via || "";
 
-                // Extract calling points (robust)
+                // FIXED: Robust calling points
                 let callingPoints = "";
 
                 if (detail && detail.locations) {
-                    // Try match by CRS
                     let idx = detail.locations.findIndex(
                         loc => loc.crs &&
                                loc.crs.toUpperCase() === currentCRS.toUpperCase()
                     );
 
-                    // Fallback: match by station name
                     if (idx === -1) {
                         idx = detail.locations.findIndex(
                             loc => loc.locationName &&
@@ -176,7 +176,6 @@
                         );
                     }
 
-                    // Final fallback
                     if (idx === -1) idx = 0;
 
                     const future = detail.locations
@@ -189,7 +188,6 @@
                     }
                 }
 
-                // Status class
                 let cls = "on-time";
                 if (etd.includes("Delayed")) cls = "delayed";
                 if (etd.includes("Cancelled")) cls = "cancelled";
@@ -220,7 +218,7 @@
     }
 
     loadDepartures();
-    setInterval(loadDepartures, 5000); // refresh every 5 seconds
+    setInterval(loadDepartures, 5000);
 </script>
 
 </body>
