@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>LIV – LED Board</title>
+    <title>LED Board</title>
 
     <style>
         body {
@@ -52,17 +52,8 @@
             letter-spacing: 1px;
         }
 
-        .time, .dest, .plat, .etd {
-            color: #ffcc33;
-        }
-
-        .plat {
-            text-align: center;
-        }
-
-        .etd {
-            text-align: right;
-        }
+        .plat { text-align: center; }
+        .etd { text-align: right; }
 
         .on-time { color: #00ff88; }
         .delayed { color: #ff8800; }
@@ -107,7 +98,7 @@
 
 <div class="board">
     <div class="header">
-        <div id="station">Liverpool Lime Street</div>
+        <div id="station">Loading…</div>
         <div id="clock">00:00:00</div>
     </div>
 
@@ -115,8 +106,7 @@
 </div>
 
 <script>
-    // Cloudflare Worker endpoint
-    const API_URL = "https://newrail.trr4qy5vhk.workers.dev/LIV";
+    const API_BASE = "https://newrail.trr4qy5vhk.workers.dev";
 
     // Clock
     setInterval(() => {
@@ -124,19 +114,38 @@
             new Date().toLocaleTimeString("en-GB");
     }, 1000);
 
+    async function fetchJSON(url) {
+        const res = await fetch(url + "?t=" + Date.now());
+        return res.json();
+    }
+
     async function loadDepartures() {
         const servicesDiv = document.getElementById("services");
 
         try {
-            const response = await fetch(API_URL + "?t=" + Date.now());
-            const data = await response.json();
+            const data = await fetchJSON(`${API_BASE}/LIV`);
+
+            // Auto-detect station name
+            document.getElementById("station").innerText = data.locationName;
 
             if (!data.trainServices || data.trainServices.length === 0) {
                 servicesDiv.innerHTML = "<div>No live departures</div>";
                 return;
             }
 
-            servicesDiv.innerHTML = data.trainServices.map(svc => {
+            const currentCRS = data.crs;
+
+            // Fetch detailed service info for each train
+            const detailed = await Promise.all(
+                data.trainServices.map(svc =>
+                    fetchJSON(`${API_BASE}/service/${svc.serviceIdPercentEncoded}?expand=true`)
+                        .catch(() => null)
+                )
+            );
+
+            servicesDiv.innerHTML = data.trainServices.map((svc, i) => {
+                const detail = detailed[i];
+
                 const dest = svc.destination[0].locationName;
                 const std = svc.std;
                 const etd = svc.etd;
@@ -144,17 +153,22 @@
                 const operator = svc.operator || "";
                 const via = svc.destination[0].via || "";
 
-                // Calling points (flatten all groups)
+                // Extract calling points from detailed service
                 let callingPoints = "";
-                if (svc.subsequentCallingPoints &&
-                    svc.subsequentCallingPoints.length > 0) {
 
-                    const allPoints = svc.subsequentCallingPoints
-                        .flatMap(group => group.callingPoint || [])
-                        .map(cp => cp.locationName);
+                if (detail && detail.locations) {
+                    const idx = detail.locations.findIndex(
+                        loc => loc.crs === currentCRS
+                    );
 
-                    if (allPoints.length > 0) {
-                        callingPoints = allPoints.join(" • ");
+                    if (idx >= 0) {
+                        const future = detail.locations
+                            .slice(idx + 1)
+                            .map(loc => loc.locationName);
+
+                        if (future.length > 0) {
+                            callingPoints = future.join(" · ");
+                        }
                     }
                 }
 
