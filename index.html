@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Manchester Piccadilly Departures</title>
+    <title>LED Board – TransportAPI</title>
 
     <style>
         body {
@@ -52,14 +52,12 @@
             letter-spacing: 1px;
         }
 
-        .time { text-align: left; }
         .plat { text-align: center; }
         .etd { text-align: right; }
 
         .on-time { color: #00ff88; }
         .delayed { color: #ff8800; }
         .cancelled { color: #ff0033; }
-        .arrived { color: #00aaff; }
 
         .via {
             font-size: 1.1rem;
@@ -107,20 +105,16 @@
 </div>
 
 <script>
-    // Point this at your Darwin-backed Worker
     const API_BASE = "https://newrail.trr4qy5vhk.workers.dev";
-    const STATION = "MAN";  // Change CRS if needed
+    const STATION = "MAN";
 
-    // Clock
     setInterval(() => {
         document.getElementById("clock").innerText =
             new Date().toLocaleTimeString("en-GB");
     }, 1000);
 
-    // Safe fetch with timestamp
     async function fetchJSON(url) {
-        const fullUrl = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
-        const res = await fetch(fullUrl);
+        const res = await fetch(url + "?t=" + Date.now());
         return res.json();
     }
 
@@ -131,69 +125,52 @@
             const data = await fetchJSON(`${API_BASE}/${STATION}`);
 
             document.getElementById("station").innerText =
-                `${data.locationName} (${data.crs || STATION})`;
+                `${data.locationName} (${data.crs})`;
 
-            if (!data.trainServices || data.trainServices.length === 0) {
-                servicesDiv.innerHTML = "<div>No live departures</div>";
-                return;
-            }
+            const services = data.trainServices;
 
-            servicesDiv.innerHTML = data.trainServices.map(svc => {
-                const dest = (svc.destination && svc.destination[0])
-                    ? svc.destination[0].locationName
-                    : "Unknown";
-                const std = svc.std || "";
-                const etd = svc.etd || "";
-                const plat = svc.platform || "-";
-                const operator = svc.operator || "";
-                const via = (svc.destination && svc.destination[0] && svc.destination[0].via)
-                    ? svc.destination[0].via
-                    : "";
+            servicesDiv.innerHTML = "";
 
-                // Calling points from Darwin subsequentCallingPoints
+            for (const svc of services) {
                 let callingPoints = "";
-                if (svc.subsequentCallingPoints &&
-                    svc.subsequentCallingPoints.length > 0 &&
-                    svc.subsequentCallingPoints[0].callingPoint &&
-                    svc.subsequentCallingPoints[0].callingPoint.length > 0) {
 
-                    callingPoints = svc.subsequentCallingPoints[0].callingPoint
+                if (svc.serviceId) {
+                    const details = await fetchJSON(`${API_BASE}/service/${svc.serviceId}`);
+                    callingPoints = details.locations
                         .map(cp => cp.locationName)
                         .join(" · ");
                 }
 
-                let cls = "on-time";
-                if (etd.toLowerCase().includes("delayed")) cls = "delayed";
-                if (etd.toLowerCase().includes("cancelled")) cls = "cancelled";
-                if (etd.toLowerCase().includes("arrived")) cls = "arrived";
+                const cls =
+                    svc.etd.includes("Cancelled") ? "cancelled" :
+                    svc.etd.includes("Delayed") ? "delayed" :
+                    "on-time";
 
-                return `
+                servicesDiv.innerHTML += `
                     <div class="row">
-                        <div class="time">${std}</div>
-                        <div class="dest">
-                            ${dest}
-                            ${via ? `<div class="via">via ${via}</div>` : ""}
-                            ${operator ? `<div class="operator">${operator}</div>` : ""}
+                        <div>${svc.std}</div>
+                        <div>
+                            ${svc.destination[0].locationName}
+                            <div class="operator">${svc.operator}</div>
                             ${callingPoints ? `
                                 <div class="calling-points">
                                     <span class="scroll">${callingPoints}</span>
                                 </div>` : ""}
                         </div>
-                        <div class="plat">${plat}</div>
-                        <div class="etd ${cls}">${etd}</div>
+                        <div class="plat">${svc.platform}</div>
+                        <div class="etd ${cls}">${svc.etd}</div>
                     </div>
                 `;
-            }).join("");
+            }
 
         } catch (err) {
-            console.error(err);
             servicesDiv.innerHTML =
                 "<div style='color:#888'>Unable to load live data</div>";
         }
     }
 
     loadDepartures();
-    setInterval(loadDepartures, 5000);
+    setInterval(loadDepartures, 15000);
 </script>
 
 </body>
