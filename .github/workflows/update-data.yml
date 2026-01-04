@@ -1,0 +1,25 @@
+name: Update National Rail Data
+
+on:
+  schedule:
+    - cron: "*/1 * * * *"   # every minute
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Fetch live data
+        run: |
+          curl -s "https://national-rail-api.davwheat.dev/departures/LIV" > departures.json
+
+      - name: Commit and push
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "actions@github.com"
+          git add departures.json
+          git commit -m "Update departures" || echo "No changes"
+          git push
