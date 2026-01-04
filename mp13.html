@@ -8,43 +8,46 @@
 <style>
     body {
         margin: 0;
-        background: #0a0f1f;
-        font-family: "Inter", Arial, sans-serif;
-        color: white;
+        background: #000;
+        font-family: "Segoe UI", "Arial", sans-serif;
+        color: #fff;
         overflow: hidden;
     }
 
     header {
-        background: #0d132b;
-        padding: 20px;
+        background: #000;
+        color: #f8d648;
         font-size: 3vw;
-        font-weight: 600;
-        text-align: center;
-        border-bottom: 2px solid rgba(255,255,255,0.1);
-    }
-
-    #main {
+        font-weight: bold;
         padding: 20px;
-        font-size: 2.2vw;
-        line-height: 1.4;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 2px solid #f8d648;
     }
 
-    .label {
-        color: #cfd8ff;
-        font-size: 1.8vw;
-        margin-top: 20px;
-        margin-bottom: 5px;
+    #clock {
+        font-size: 2.5vw;
+        font-weight: bold;
     }
 
-    .value {
-        font-size: 2.4vw;
-        font-weight: 600;
+    #board {
+        padding: 30px;
+        font-size: 2.5vw;
+        line-height: 1.6;
+    }
+
+    .row {
+        margin-bottom: 20px;
+    }
+
+    .destination {
+        font-weight: bold;
+        color: #fff;
     }
 
     .status {
-        font-size: 2.4vw;
-        font-weight: 700;
-        margin-top: 10px;
+        font-weight: bold;
     }
 
     .delayed {
@@ -55,14 +58,18 @@
         color: #ff4d4d;
     }
 
-    /* Scrolling areas */
+    .coaches {
+        font-size: 2vw;
+        color: #cfcfcf;
+        margin-top: -10px;
+    }
+
     .scroll-box {
-        max-height: 25vh;
+        max-height: 30vh;
         overflow-y: auto;
-        padding-right: 10px;
+        font-size: 2vw;
         margin-top: 10px;
-        border-left: 3px solid rgba(255,255,255,0.1);
-        padding-left: 15px;
+        padding-left: 10px;
     }
 
     .scroll-box::-webkit-scrollbar {
@@ -75,111 +82,106 @@
     }
 
     .separator {
-        height: 20px;
+        height: 30px;
     }
 </style>
 </head>
 
 <body>
 
-<header>Manchester Piccadilly — Platform 13</header>
+<header>
+    <div>Platform 13</div>
+    <div id="clock">--:--:--</div>
+</header>
 
-<div id="main">
-    <div class="label">Time Due</div>
-    <div id="timeDue" class="value">Loading…</div>
-
-    <div class="label">Destination</div>
-    <div id="destination" class="value">Loading…</div>
-
-    <div class="label">Status</div>
-    <div id="status" class="status">Loading…</div>
-
-    <div class="label">Calling Points</div>
-    <div id="callingPoints" class="scroll-box">Loading…</div>
-
+<div id="board">
+    <div id="rows">Loading…</div>
     <div class="separator"></div>
-
-    <div class="label">Train Formation</div>
-    <div id="formation" class="scroll-box">Loading…</div>
+    <div id="callingPoints" class="scroll-box">Calling points loading…</div>
+    <div class="separator"></div>
+    <div id="formation" class="scroll-box">Formation loading…</div>
 </div>
 
 <script>
 const WORKER_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=20";
+
+function updateClock() {
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    document.getElementById("clock").textContent = `${hh}:${mm}:${ss}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
 
 async function loadPlatform13() {
     try {
         const res = await fetch(WORKER_URL);
         const data = await res.json();
 
+        const rowsDiv = document.getElementById("rows");
+        const cpBox = document.getElementById("callingPoints");
+        const formationBox = document.getElementById("formation");
+
+        rowsDiv.innerHTML = "";
+        cpBox.innerHTML = "";
+        formationBox.innerHTML = "";
+
         if (!data.trainServices) return;
 
-        // Filter for Platform 13 only
-        const service = data.trainServices.find(s => s.platform === "13");
-        if (!service) {
-            document.getElementById("timeDue").textContent = "No service";
-            document.getElementById("destination").textContent = "-";
-            document.getElementById("status").textContent = "-";
-            document.getElementById("callingPoints").textContent = "No calling points";
-            document.getElementById("formation").textContent = "-";
+        const services = data.trainServices.filter(s => s.platform === "13").slice(0, 2);
+        if (services.length === 0) {
+            rowsDiv.innerHTML = `<div class="row">No departures scheduled</div>`;
             return;
         }
 
-        // --- Determine origin and raw destination ---
-        const origin = service.origin?.[0]?.locationName || "";
-        const destinationRaw = service.destination?.[0]?.locationName || "";
+        services.forEach(service => {
+            const origin = service.origin?.[0]?.locationName || "";
+            const destinationRaw = service.destination?.[0]?.locationName || "";
+            const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
 
-        // --- Determine REAL destination ---
-        let destination = destinationRaw;
+            let destination = destinationRaw;
+            if (destinationRaw === "Manchester Piccadilly" && hasOnward) {
+                const onward = service.subsequentCallingPoints[0].callingPoint[0].locationName;
+                if (onward) destination = onward;
+            }
 
-        const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
+            const timeDue = service.std || service.sta || "—";
+            let status = service.etd || service.eta || "—";
+            let statusClass = "status";
 
-        if (destinationRaw === "Manchester Piccadilly" && hasOnward) {
-            const onward = service.subsequentCallingPoints[0].callingPoint[0].locationName;
-            if (onward) destination = onward;
-        }
+            if (service.isCancelled) {
+                status = "Cancelled";
+                statusClass += " cancelled";
+            } else if (status !== "On time") {
+                statusClass += " delayed";
+            }
 
-        // --- Time due ---
-        const timeDue = service.std || service.sta || "—";
+            const length = service.length || "?";
+            const operator = service.operator || "Unknown Operator";
+            const formationText = `${length} coaches — Formation: ${service.isReverseFormation ? "Reversed" : "Normal"} (${operator})`;
 
-        // --- Status ---
-        let status = service.etd || service.eta || "—";
-        let statusClass = "";
+            const row = document.createElement("div");
+            row.className = "row";
+            row.innerHTML = `
+                <div><span class="destination">${timeDue} ${destination}</span> <span class="${statusClass}">${status}</span></div>
+                <div class="coaches">Train has ${length} coaches</div>
+            `;
+            rowsDiv.appendChild(row);
 
-        if (service.isCancelled) {
-            status = "Cancelled";
-            statusClass = "cancelled";
-        } else if (status !== "On time") {
-            statusClass = "delayed";
-        }
+            // Only show calling points and formation for the first service
+            if (service === services[0]) {
+                const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
+                cps.forEach(cp => {
+                    const div = document.createElement("div");
+                    div.textContent = `${cp.locationName} — ${cp.st} → ${cp.et}`;
+                    cpBox.appendChild(div);
+                });
 
-        document.getElementById("timeDue").textContent = timeDue;
-        document.getElementById("destination").textContent = destination;
-
-        const statusEl = document.getElementById("status");
-        statusEl.textContent = status;
-        statusEl.className = "status " + statusClass;
-
-        // --- Calling points ---
-        const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
-        const cpBox = document.getElementById("callingPoints");
-        cpBox.innerHTML = "";
-
-        cps.forEach(cp => {
-            const div = document.createElement("div");
-            div.textContent = `${cp.locationName} — ${cp.st} → ${cp.et}`;
-            cpBox.appendChild(div);
+                formationBox.textContent = formationText;
+            }
         });
-
-        // --- Formation ---
-        const formationBox = document.getElementById("formation");
-        formationBox.innerHTML = "";
-
-        const length = service.length || "?";
-        const operator = service.operator || "Unknown Operator";
-
-        const formationText = `${length} carriages — Formation: ${service.isReverseFormation ? "Reversed" : "Normal"} (${operator})`;
-
-        formationBox.textContent = formationText;
 
     } catch (err) {
         console.error("Error loading platform board:", err);
