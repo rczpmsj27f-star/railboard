@@ -67,6 +67,11 @@
         color: #ff4d4d;
     }
 
+    .expected-red {
+        color: #ff4d4d;
+        font-weight: bold;
+    }
+
     .line3 {
         font-size: 1.8vw;
         color: #cfcfcf;
@@ -76,29 +81,13 @@
     .line4 {
         font-size: 2vw;
         margin-top: 10px;
-    }
-
-    .line6 {
-        font-size: 2vw;
-        color: #4da6ff;
-        margin-top: 10px;
-    }
-
-    /* Ticker */
-    #ticker {
-        position: fixed;
-        bottom: 0;
-        width: 100%;
-        background: #000;
-        color: #fff;
-        font-size: 2vw;
-        padding: 10px 0;
-        overflow: hidden;
         white-space: nowrap;
-        border-top: 2px solid #f8d648;
+        overflow: hidden;
+        position: relative;
     }
 
-    #ticker span {
+    /* Scroll only if needed */
+    .line4.scroll span {
         display: inline-block;
         padding-left: 100%;
         animation: scroll-left 18s linear infinite;
@@ -109,22 +98,10 @@
         100% { transform: translateX(-100%); }
     }
 
-    .alert-red {
-        color: #ff4d4d;
-        font-weight: bold;
-    }
-
-    /* Calling points scroll */
-    .calling-scroll {
-        white-space: nowrap;
-        overflow: hidden;
-        position: relative;
-    }
-
-    .calling-scroll span {
-        display: inline-block;
-        padding-left: 100%;
-        animation: scroll-left 18s linear infinite;
+    .line6 {
+        font-size: 2vw;
+        color: #4da6ff;
+        margin-top: 10px;
     }
 
     .catering {
@@ -132,7 +109,6 @@
         font-weight: bold;
     }
 
-    /* Platform change warning */
     .platform-warning {
         color: #ffcc00;
         font-size: 2.2vw;
@@ -142,21 +118,14 @@
 
     /* Formation bar */
     .formation-wrapper {
-        overflow: hidden;
-        width: 100%;
         margin-top: 10px;
+        display: flex;
+        justify-content: center;
     }
 
-    .formation-slide {
-        display: inline-flex;
+    .formation-bar {
+        display: flex;
         gap: 12px;
-        animation: slide-left 18s linear infinite;
-        padding-left: 100%;
-    }
-
-    @keyframes slide-left {
-        0% { transform: translateX(0); }
-        100% { transform: translateX(-100%); }
     }
 
     .coach-block {
@@ -198,6 +167,31 @@
         font-weight: bold;
         margin-bottom: 5px;
     }
+
+    /* Ticker */
+    #ticker {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        background: #000;
+        color: #fff;
+        font-size: 2vw;
+        padding: 10px 0;
+        overflow: hidden;
+        white-space: nowrap;
+        border-top: 2px solid #f8d648;
+    }
+
+    #ticker span {
+        display: inline-block;
+        padding-left: 100%;
+        animation: scroll-left 18s linear infinite;
+    }
+
+    .alert-red {
+        color: #ff4d4d;
+        font-weight: bold;
+    }
 </style>
 </head>
 
@@ -225,7 +219,7 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
-/* Build formation bar */
+/* Build static formation bar */
 function buildFormationBar(service) {
     const length = service.length || 0;
 
@@ -294,7 +288,6 @@ async function loadPlatform13() {
         let tickerMessages = [];
 
         services.forEach(service => {
-            const origin = service.origin?.[0]?.locationName || "";
             const destinationRaw = service.destination?.[0]?.locationName || "";
             const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
 
@@ -304,21 +297,23 @@ async function loadPlatform13() {
                 if (onward) destination = onward;
             }
 
-            const timeDue = service.std || service.sta || "—";
-            let status = service.etd || service.eta || "—";
+            const timeDue = service.std || "—";
+            let status = service.etd || "—";
             let statusClass = "";
+            let expectedTime = "";
 
             if (service.isCancelled) {
                 status = "Cancelled";
                 statusClass = "cancelled";
             } else if (status !== "On time") {
+                expectedTime = `<span class="expected-red">${status}</span>`;
                 statusClass = "delayed";
             }
 
             const length = service.length || "?";
             const operator = service.operator || "Unknown Operator";
             const formation = service.isReverseFormation ? "Reversed" : "Normal";
-            const formationText = `${length} coaches | Formation: ${formation}`;
+            const formationText = `${length} coaches | Formation: ${formation} (${service.isReverseFormation ? "🔽 Rear" : "🔼 Front"})`;
 
             const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
             const cpText = cps.map(cp => `${cp.locationName} (${cp.st})`).join(", ");
@@ -343,37 +338,42 @@ async function loadPlatform13() {
                 ${platformWarning}
                 <div class="line2">
                     <div class="left">${timeDue.padEnd(10)}${destination}</div>
-                    <div class="right ${statusClass}">${status}</div>
+                    <div class="right ${statusClass}">${expectedTime || status}</div>
                 </div>
-                <div class="line3">${formationText}</div>
 
-                <div class="formation-direction">
-                    ${service.isReverseFormation ? "🔽 Rear of train" : "🔼 Front of train"}
-                </div>
+                <div class="line3">${formationText}</div>
 
                 ${buildFirstClassLabel(service)}
 
                 <div class="formation-wrapper">
-                    <div class="formation-slide">
+                    <div class="formation-bar">
                         ${buildFormationBar(service)}
                     </div>
                 </div>
 
-                <div class="line4 calling-scroll">
-                    <span>Calling at: ${cpText}${cateringText}</span>
+                <div class="line4" id="cp-${service.rid}">
+                    Calling at: ${cpText}${cateringText}
                 </div>
 
                 <div class="line6">${operator}</div>
             `;
             board.appendChild(block);
+
+            // Enable scroll only if needed
+            setTimeout(() => {
+                const cpLine = document.getElementById(`cp-${service.rid}`);
+                if (cpLine.scrollWidth > cpLine.clientWidth) {
+                    cpLine.classList.add("scroll");
+                    cpLine.innerHTML = `<span>${cpLine.innerText}</span>`;
+                }
+            }, 50);
         });
 
-        const weather = "Weather: Dry, 8°C, light winds.";
-
+        // Ticker (service alerts only)
         if (tickerMessages.length === 0) {
-            ticker.innerHTML = `${weather} — No service alerts.`;
+            ticker.innerHTML = `No service alerts.`;
         } else {
-            ticker.innerHTML = `${weather} — ` + tickerMessages.join(" — ");
+            ticker.innerHTML = tickerMessages.join(" — ");
         }
 
     } catch (err) {
