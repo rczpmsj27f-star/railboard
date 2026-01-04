@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>LED Board – Manchester Piccadilly</title>
+    <title>LED Board – Universal</title>
 
     <style>
         body {
@@ -108,6 +108,10 @@
 <script>
     const API_BASE = "https://newrail.trr4qy5vhk.workers.dev";
 
+    // CHANGE THIS TO ANY CRS CODE
+    const STATION = "MAN";  
+    // Examples: "LIV", "EUS", "BHM", "BTN", "GLC", "KGX"
+
     // Clock
     setInterval(() => {
         document.getElementById("clock").innerText =
@@ -123,8 +127,7 @@
         const servicesDiv = document.getElementById("services");
 
         try {
-            // CHANGE TO MAN
-            const data = await fetchJSON(`${API_BASE}/MAN?expand=false`);
+            const data = await fetchJSON(`${API_BASE}/${STATION}?expand=false`);
 
             // Auto-detect station name
             document.getElementById("station").innerText = data.locationName;
