@@ -115,7 +115,7 @@
     }, 1000);
 
     async function fetchJSON(url) {
-        const res = await fetch(url + "?t=" + Date.now());
+        const res = await fetch(url + "&t=" + Date.now());
         return res.json();
     }
 
@@ -123,7 +123,7 @@
         const servicesDiv = document.getElementById("services");
 
         try {
-            const data = await fetchJSON(`${API_BASE}/LIV`);
+            const data = await fetchJSON(`${API_BASE}/LIV?expand=false`);
 
             // Auto-detect station name
             document.getElementById("station").innerText = data.locationName;
@@ -134,6 +134,7 @@
             }
 
             const currentCRS = data.crs;
+            const currentName = data.locationName;
 
             // Fetch detailed service info for each train
             const detailed = await Promise.all(
@@ -153,22 +154,34 @@
                 const operator = svc.operator || "";
                 const via = svc.destination[0].via || "";
 
-                // Extract calling points from detailed service
+                // Extract calling points (robust)
                 let callingPoints = "";
 
                 if (detail && detail.locations) {
-                    const idx = detail.locations.findIndex(
-                        loc => loc.crs === currentCRS
+                    // Try match by CRS
+                    let idx = detail.locations.findIndex(
+                        loc => loc.crs &&
+                               loc.crs.toUpperCase() === currentCRS.toUpperCase()
                     );
 
-                    if (idx >= 0) {
-                        const future = detail.locations
-                            .slice(idx + 1)
-                            .map(loc => loc.locationName);
+                    // Fallback: match by station name
+                    if (idx === -1) {
+                        idx = detail.locations.findIndex(
+                            loc => loc.locationName &&
+                                   loc.locationName.toLowerCase() === currentName.toLowerCase()
+                        );
+                    }
 
-                        if (future.length > 0) {
-                            callingPoints = future.join(" · ");
-                        }
+                    // Final fallback
+                    if (idx === -1) idx = 0;
+
+                    const future = detail.locations
+                        .slice(idx + 1)
+                        .map(loc => loc.locationName)
+                        .filter(Boolean);
+
+                    if (future.length > 0) {
+                        callingPoints = future.join(" · ");
                     }
                 }
 
