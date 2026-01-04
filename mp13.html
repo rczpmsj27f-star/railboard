@@ -73,14 +73,14 @@
         font-weight: bold;
     }
 
-    .awaiting {
-        color: #4da6ff;
-        font-weight: bold;
-    }
-
     .expected-red {
         color: #ff4d4d;
         font-weight: bold;
+    }
+
+    .calling-label {
+        font-weight: bold;
+        color: #fff;
     }
 
     .line3 {
@@ -117,13 +117,6 @@
     .catering {
         color: #ff66cc;
         font-weight: bold;
-    }
-
-    .platform-warning {
-        color: #ffcc00;
-        font-size: 2.2vw;
-        font-weight: bold;
-        margin-bottom: 10px;
     }
 
     .formation-wrapper {
@@ -262,9 +255,10 @@ async function loadPlatform13() {
 
         if (!data.trainServices) return;
 
+        // STRICT: Only platform 13
         const services = data.trainServices
-            .filter(s => s.platform && (s.platform.trim().startsWith("13") || s.platform.trim().startsWith("14")))
-            .slice(0, 2);
+            .filter(s => s.platform && s.platform.trim().startsWith("13"))
+            .slice(0, 3);
 
         if (services.length === 0) {
             board.innerHTML = `<div>No departures scheduled</div>`;
@@ -273,13 +267,11 @@ async function loadPlatform13() {
         }
 
         // -------------------------
-        // TRAIN 1
+        // TRAIN 1 — FULL DETAILS
         // -------------------------
         const service = services[0];
 
         const platform = service.platform?.trim() || "";
-        const is13 = platform.startsWith("13");
-        const is14 = platform.startsWith("14");
 
         const destinationRaw = service.destination?.[0]?.locationName || "";
         const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
@@ -300,9 +292,6 @@ async function loadPlatform13() {
             hasArrived = true;
             status = "Arrived";
             statusClass = "arrived";
-        } else if (is14) {
-            status = "Awaiting platform";
-            statusClass = "awaiting";
         } else if (service.isCancelled) {
             status = "Cancelled";
             statusClass = "cancelled";
@@ -364,6 +353,11 @@ async function loadPlatform13() {
                 <div class="right ${statusClass}">${expectedTime || status}</div>
             </div>
 
+            <div class="line4" id="cp-${service.rid}">
+                <span class="calling-label">Calling at:</span> ${cpText}${cateringText}
+                ${delayReason ? ` | <span class="expected-red">⏱ ${delayReason}</span>` : ""}
+            </div>
+
             <div class="line3">This train is made of ${length} coaches</div>
 
             ${buildFirstClassLabel(service)}
@@ -374,22 +368,14 @@ async function loadPlatform13() {
                 </div>
             </div>
 
-            <div class="line4" id="cp-${service.rid}">
-                Calling at: ${cpText}${cateringText}
-                ${delayReason ? ` | <span class="expected-red">⏱ This train has been delayed due to ${delayReason}</span>` : ""}
-            </div>
-
-            <div class="line6">${operator}</div>
-
-            <div style="color:#00ff66; font-size:1.8vw; margin-top:5px;">
+            <div class="line6">
+                ${operator}
                 ${
                     hasArrived
-                        ? `Train has arrived at Platform 13`
-                        : is14
-                            ? `Train approaching Manchester Piccadilly`
-                            : currentLocation
-                                ? `Train currently near ${currentLocation}`
-                                : ""
+                        ? ` | Train has arrived at Platform 13`
+                        : currentLocation
+                            ? ` | Train currently near ${currentLocation}`
+                            : ""
                 }
             </div>
         `;
@@ -404,13 +390,12 @@ async function loadPlatform13() {
         }, 50);
 
         // -------------------------
-        // TRAIN 2
+        // TRAIN 2 — SINGLE LINE
         // -------------------------
         if (services.length > 1) {
             const s2 = services[1];
 
             const platform2 = s2.platform?.trim() || "";
-            const is14_2 = platform2.startsWith("14");
 
             const dest2raw = s2.destination?.[0]?.locationName || "";
             let dest2 = dest2raw;
@@ -426,9 +411,6 @@ async function loadPlatform13() {
             if (s2.etd?.toLowerCase() === "arrived" || s2.ata) {
                 st2 = "Arrived";
                 st2class = "arrived";
-            } else if (is14_2) {
-                st2 = "Awaiting platform";
-                st2class = "awaiting";
             } else if (s2.isCancelled) {
                 st2 = "Cancelled";
                 st2class = "cancelled";
@@ -448,6 +430,49 @@ async function loadPlatform13() {
                 </div>
             `;
             board.appendChild(block2);
+        }
+
+        // -------------------------
+        // TRAIN 3 — SINGLE LINE
+        // -------------------------
+        if (services.length > 2) {
+            const s3 = services[2];
+
+            const platform3 = s3.platform?.trim() || "";
+
+            const dest3raw = s3.destination?.[0]?.locationName || "";
+            let dest3 = dest3raw;
+            if (dest3raw === "Manchester Piccadilly" && s3.subsequentCallingPoints?.[0]?.callingPoint?.length > 0) {
+                dest3 = s3.subsequentCallingPoints[0].callingPoint[0].locationName;
+            }
+
+            const t3 = s3.std || "—";
+            let st3 = s3.etd || "—";
+            let st3class = "";
+            let st3expected = "";
+
+            if (s3.etd?.toLowerCase() === "arrived" || s3.ata) {
+                st3 = "Arrived";
+                st3class = "arrived";
+            } else if (s3.isCancelled) {
+                st3 = "Cancelled";
+                st3class = "cancelled";
+            } else if (st3 !== "On time") {
+                st3expected = `<span class="expected-red">${st3}</span>`;
+                st3class = "delayed";
+            }
+
+            const block3 = document.createElement("div");
+            block3.className = "train-block";
+            block3.style.marginTop = "20px";
+            block3.style.marginBottom = "20px";
+            block3.innerHTML = `
+                <div class="line2">
+                    <div class="left">${t3.padEnd(10)}${dest3} (Platform ${platform3})</div>
+                    <div class="right ${st3class}">${st3expected || st3}</div>
+                </div>
+            `;
+            board.appendChild(block3);
         }
 
         ticker.innerHTML = `No service alerts.`;
