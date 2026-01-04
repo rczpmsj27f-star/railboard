@@ -129,7 +129,7 @@
 </div>
 
 <script>
-const WORKER_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=10";
+const WORKER_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=20";
 
 async function loadDepartures() {
     try {
@@ -141,25 +141,36 @@ async function loadDepartures() {
 
         if (!data.trainServices) return;
 
-        data.trainServices.slice(0, 20).forEach(service => {
+        data.trainServices.forEach(service => {
 
-            // --- CLEAN FIX: Skip terminating services ---
+            // --- Determine origin and raw destination ---
             const origin = service.origin?.[0]?.locationName || "";
             const destinationRaw = service.destination?.[0]?.locationName || "";
 
-            if (origin === "Manchester Piccadilly" && destinationRaw === "Manchester Piccadilly") {
+            // --- 1. Skip terminating services (no onward calling points) ---
+            const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
+            if (destinationRaw === "Manchester Piccadilly" && !hasOnward) {
                 return;
             }
 
-            // --- CLEAN FIX: Determine the REAL destination ---
+            // --- 2. Determine the REAL destination ---
             let destination = destinationRaw;
 
-            if (destination === "Manchester Piccadilly") {
+            // If Darwin incorrectly reports MAN as destination, use first onward stop
+            if (destinationRaw === "Manchester Piccadilly") {
                 const onward = service.subsequentCallingPoints?.[0]?.callingPoint?.[0]?.locationName;
                 if (onward) destination = onward;
             }
 
-            if (!destination) return;
+            // --- 3. Skip services that start AND end at MAN ---
+            if (origin === "Manchester Piccadilly" && destination === "Manchester Piccadilly") {
+                return;
+            }
+
+            // --- 4. Skip anything still showing MAN as destination ---
+            if (destination === "Manchester Piccadilly") {
+                return;
+            }
 
             const row = document.createElement("tr");
 
