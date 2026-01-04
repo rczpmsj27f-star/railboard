@@ -115,7 +115,8 @@
 </div>
 
 <script>
-    const API_URL = "https://rczpmsj27f-star.github.io/railboard/departures.json";
+    // Cloudflare Worker endpoint (your Worker)
+    const API_URL = "https://trr4qy5vhk.workers.dev/LIV";
 
     // Clock
     setInterval(() => {
@@ -143,7 +144,7 @@
                 const operator = svc.operator || "";
                 const via = svc.destination[0].via || "";
 
-                // FIXED: calling points extraction (flattened)
+                // Calling points (flatten all groups)
                 let callingPoints = "";
                 if (svc.subsequentCallingPoints &&
                     svc.subsequentCallingPoints.length > 0) {
@@ -188,7 +189,7 @@
     }
 
     loadDepartures();
-    setInterval(loadDepartures, 30000);
+    setInterval(loadDepartures, 5000); // refresh every 5 seconds
 </script>
 
 </body>
