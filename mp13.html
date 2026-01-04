@@ -73,6 +73,11 @@
         font-weight: bold;
     }
 
+    .awaiting {
+        color: #4da6ff;
+        font-weight: bold;
+    }
+
     .expected-red {
         color: #ff4d4d;
         font-weight: bold;
@@ -190,11 +195,6 @@
         padding-left: 100%;
         animation: scroll-left 18s linear infinite;
     }
-
-    .alert-red {
-        color: #ff4d4d;
-        font-weight: bold;
-    }
 </style>
 </head>
 
@@ -263,7 +263,7 @@ async function loadPlatform13() {
         if (!data.trainServices) return;
 
         const services = data.trainServices
-            .filter(s => s.platform && s.platform.trim().startsWith("13"))
+            .filter(s => s.platform && (s.platform.trim().startsWith("13") || s.platform.trim().startsWith("14")))
             .slice(0, 2);
 
         if (services.length === 0) {
@@ -272,12 +272,14 @@ async function loadPlatform13() {
             return;
         }
 
-        let tickerMessages = [];
-
         // -------------------------
         // TRAIN 1
         // -------------------------
         const service = services[0];
+
+        const platform = service.platform?.trim() || "";
+        const is13 = platform.startsWith("13");
+        const is14 = platform.startsWith("14");
 
         const destinationRaw = service.destination?.[0]?.locationName || "";
         const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
@@ -298,6 +300,9 @@ async function loadPlatform13() {
             hasArrived = true;
             status = "Arrived";
             statusClass = "arrived";
+        } else if (is14) {
+            status = "Awaiting platform";
+            statusClass = "awaiting";
         } else if (service.isCancelled) {
             status = "Cancelled";
             statusClass = "cancelled";
@@ -351,18 +356,11 @@ async function loadPlatform13() {
             currentLocation = last?.locationName || "";
         }
 
-        let platformWarning = "";
-        if (service.platform && !service.platform.trim().startsWith("13")) {
-            platformWarning = `<div class="platform-warning">⚠ PLATFORM CHANGE — Now departing from Platform ${service.platform}</div>`;
-        }
-
         const block1 = document.createElement("div");
         block1.className = "train-block";
         block1.innerHTML = `
-            ${platformWarning}
-
             <div class="line2">
-                <div class="left">${timeDue.padEnd(10)}${destination}</div>
+                <div class="left">${timeDue.padEnd(10)}${destination} (Platform ${platform})</div>
                 <div class="right ${statusClass}">${expectedTime || status}</div>
             </div>
 
@@ -383,13 +381,15 @@ async function loadPlatform13() {
 
             <div class="line6">${operator}</div>
 
-            <div style="color:#00cc66; font-size:1.8vw; margin-top:5px;">
+            <div style="color:#00ff66; font-size:1.8vw; margin-top:5px;">
                 ${
                     hasArrived
                         ? `Train has arrived at Platform 13`
-                        : currentLocation
-                            ? `Train currently near ${currentLocation}`
-                            : ""
+                        : is14
+                            ? `Train approaching Manchester Piccadilly`
+                            : currentLocation
+                                ? `Train currently near ${currentLocation}`
+                                : ""
                 }
             </div>
         `;
@@ -409,6 +409,9 @@ async function loadPlatform13() {
         if (services.length > 1) {
             const s2 = services[1];
 
+            const platform2 = s2.platform?.trim() || "";
+            const is14_2 = platform2.startsWith("14");
+
             const dest2raw = s2.destination?.[0]?.locationName || "";
             let dest2 = dest2raw;
             if (dest2raw === "Manchester Piccadilly" && s2.subsequentCallingPoints?.[0]?.callingPoint?.length > 0) {
@@ -423,6 +426,9 @@ async function loadPlatform13() {
             if (s2.etd?.toLowerCase() === "arrived" || s2.ata) {
                 st2 = "Arrived";
                 st2class = "arrived";
+            } else if (is14_2) {
+                st2 = "Awaiting platform";
+                st2class = "awaiting";
             } else if (s2.isCancelled) {
                 st2 = "Cancelled";
                 st2class = "cancelled";
@@ -437,16 +443,13 @@ async function loadPlatform13() {
             block2.style.marginBottom = "20px";
             block2.innerHTML = `
                 <div class="line2">
-                    <div class="left">${t2.padEnd(10)}${dest2}</div>
+                    <div class="left">${t2.padEnd(10)}${dest2} (Platform ${platform2})</div>
                     <div class="right ${st2class}">${st2expected || st2}</div>
                 </div>
             `;
             board.appendChild(block2);
         }
 
-        // -------------------------
-        // TICKER
-        // -------------------------
         ticker.innerHTML = `No service alerts.`;
 
     } catch (err) {
