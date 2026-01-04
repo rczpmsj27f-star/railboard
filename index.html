@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Manchester Piccadilly Departures</title>
+  <title>Live Departures</title>
 
   <style>
     body {
@@ -99,8 +99,8 @@
 <body>
 
   <header>
-    <h1>Manchester Piccadilly</h1>
-    <h2>Live Departures</h2>
+    <h1 id="station-title">Live Departures</h1>
+    <h2 id="station-subtitle"></h2>
     <div id="last-updated"></div>
   </header>
 
@@ -121,7 +121,14 @@
   <pre id="debug"></pre>
 
   <script>
-    const API_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=10";
+    // Read CRS from URL, default to MAN
+    const params = new URLSearchParams(window.location.search);
+    const CRS = (params.get("crs") || "MAN").toUpperCase();
+
+    document.getElementById("station-title").textContent = CRS + " Departures";
+
+    const API_URL =
+      `https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=${CRS}&numRows=150`;
 
     async function loadBoard() {
       try {
@@ -129,18 +136,18 @@
         const data = await res.json();
 
         // Show raw JSON for debugging
-        document.getElementById("debug").textContent = JSON.stringify(data, null, 2);
+        document.getElementById("debug").textContent =
+          JSON.stringify(data, null, 2);
 
-        // Your worker returns: { trainServices: [ ... ] }
         let services = data?.trainServices || [];
 
-        // 🔥 FILTER OUT services terminating at Manchester Piccadilly
+        // Filter out services terminating at this station
         services = services.filter(service => {
           const dest =
             service.destination?.location?.[0]?.locationName ||
             service.destination?.[0]?.locationName ||
             "";
-          return dest.toLowerCase() !== "manchester piccadilly";
+          return dest.toLowerCase() !== CRS.toLowerCase();
         });
 
         const tbody = document.getElementById("rows");
