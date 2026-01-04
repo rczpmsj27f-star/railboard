@@ -33,21 +33,30 @@
 
     #board {
         padding: 30px;
-        font-size: 2.5vw;
+        font-size: 2.2vw;
         line-height: 1.6;
     }
 
-    .row {
-        margin-bottom: 20px;
+    .train-block {
+        margin-bottom: 60px;
     }
 
-    .destination {
+    .line2 {
         font-weight: bold;
-        color: #fff;
+        font-size: 2.5vw;
+        display: flex;
+        justify-content: space-between;
+        white-space: nowrap;
     }
 
-    .status {
-        font-weight: bold;
+    .line2 .left {
+        display: inline-block;
+    }
+
+    .line2 .right {
+        display: inline-block;
+        text-align: right;
+        min-width: 20vw;
     }
 
     .delayed {
@@ -58,31 +67,21 @@
         color: #ff4d4d;
     }
 
-    .coaches {
-        font-size: 2vw;
+    .line3 {
+        font-size: 1.8vw;
         color: #cfcfcf;
-        margin-top: -10px;
+        margin-top: 5px;
     }
 
-    .scroll-box {
-        max-height: 30vh;
-        overflow-y: auto;
+    .line4 {
         font-size: 2vw;
         margin-top: 10px;
-        padding-left: 10px;
     }
 
-    .scroll-box::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    .scroll-box::-webkit-scrollbar-thumb {
-        background: rgba(255,255,255,0.2);
-        border-radius: 4px;
-    }
-
-    .separator {
-        height: 30px;
+    .line6 {
+        font-size: 2vw;
+        color: #4da6ff;
+        margin-top: 10px;
     }
 </style>
 </head>
@@ -90,17 +89,11 @@
 <body>
 
 <header>
-    <div>Platform 13</div>
+    <div>Next trains | Platform 13</div>
     <div id="clock">--:--:--</div>
 </header>
 
-<div id="board">
-    <div id="rows">Loading…</div>
-    <div class="separator"></div>
-    <div id="callingPoints" class="scroll-box">Calling points loading…</div>
-    <div class="separator"></div>
-    <div id="formation" class="scroll-box">Formation loading…</div>
-</div>
+<div id="board">Loading…</div>
 
 <script>
 const WORKER_URL = "https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=MAN&numRows=20";
@@ -120,19 +113,14 @@ async function loadPlatform13() {
         const res = await fetch(WORKER_URL);
         const data = await res.json();
 
-        const rowsDiv = document.getElementById("rows");
-        const cpBox = document.getElementById("callingPoints");
-        const formationBox = document.getElementById("formation");
-
-        rowsDiv.innerHTML = "";
-        cpBox.innerHTML = "";
-        formationBox.innerHTML = "";
+        const board = document.getElementById("board");
+        board.innerHTML = "";
 
         if (!data.trainServices) return;
 
         const services = data.trainServices.filter(s => s.platform === "13").slice(0, 2);
         if (services.length === 0) {
-            rowsDiv.innerHTML = `<div class="row">No departures scheduled</div>`;
+            board.innerHTML = `<div>No departures scheduled</div>`;
             return;
         }
 
@@ -149,38 +137,35 @@ async function loadPlatform13() {
 
             const timeDue = service.std || service.sta || "—";
             let status = service.etd || service.eta || "—";
-            let statusClass = "status";
+            let statusClass = "";
 
             if (service.isCancelled) {
                 status = "Cancelled";
-                statusClass += " cancelled";
+                statusClass = "cancelled";
             } else if (status !== "On time") {
-                statusClass += " delayed";
+                statusClass = "delayed";
             }
 
             const length = service.length || "?";
             const operator = service.operator || "Unknown Operator";
-            const formationText = `${length} coaches — Formation: ${service.isReverseFormation ? "Reversed" : "Normal"} (${operator})`;
+            const formation = service.isReverseFormation ? "Reversed" : "Normal";
+            const formationText = `${length} coaches | Formation: ${formation} (includes First Class)`;
 
-            const row = document.createElement("div");
-            row.className = "row";
-            row.innerHTML = `
-                <div><span class="destination">${timeDue} ${destination}</span> <span class="${statusClass}">${status}</span></div>
-                <div class="coaches">Train has ${length} coaches</div>
+            const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
+            const cpText = cps.map(cp => `${cp.locationName} (${cp.st})`).join(" → ");
+
+            const block = document.createElement("div");
+            block.className = "train-block";
+            block.innerHTML = `
+                <div class="line2">
+                    <div class="left">${timeDue.padEnd(10)}${destination}</div>
+                    <div class="right ${statusClass}">${status}</div>
+                </div>
+                <div class="line3">${formationText}</div>
+                <div class="line4">${cpText}</div>
+                <div class="line6">${operator}</div>
             `;
-            rowsDiv.appendChild(row);
-
-            // Only show calling points and formation for the first service
-            if (service === services[0]) {
-                const cps = service.subsequentCallingPoints?.[0]?.callingPoint || [];
-                cps.forEach(cp => {
-                    const div = document.createElement("div");
-                    div.textContent = `${cp.locationName} — ${cp.st} → ${cp.et}`;
-                    cpBox.appendChild(div);
-                });
-
-                formationBox.textContent = formationText;
-            }
+            board.appendChild(block);
         });
 
     } catch (err) {
