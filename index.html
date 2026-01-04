@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>LED Board – Calling Points</title>
+    <title>Manchester Piccadilly Departures</title>
 
     <style>
         body {
@@ -14,7 +14,7 @@
         }
 
         .board {
-            max-width: 900px;
+            max-width: 1100px;
             margin: auto;
             background: #000;
             border: 4px solid #222;
@@ -30,7 +30,7 @@
         }
 
         #station {
-            font-size: 2.2rem;
+            font-size: 2.4rem;
             font-weight: bold;
             letter-spacing: 2px;
             text-transform: uppercase;
@@ -38,7 +38,7 @@
         }
 
         #clock {
-            font-size: 2.2rem;
+            font-size: 2.4rem;
             font-family: monospace;
             color: #ffcc33;
         }
@@ -46,12 +46,13 @@
         .row {
             display: grid;
             grid-template-columns: 120px 1fr 80px 160px;
-            padding: 12px 0;
+            padding: 10px 0;
             border-bottom: 1px solid #111;
             font-size: 1.4rem;
             letter-spacing: 1px;
         }
 
+        .time { text-align: left; }
         .plat { text-align: center; }
         .etd { text-align: right; }
 
@@ -106,8 +107,9 @@
 </div>
 
 <script>
+    // Point this at your Darwin-backed Worker
     const API_BASE = "https://newrail.trr4qy5vhk.workers.dev";
-    const STATION = "MAN";  // Change to any CRS code
+    const STATION = "MAN";  // Change CRS if needed
 
     // Clock
     setInterval(() => {
@@ -126,9 +128,10 @@
         const servicesDiv = document.getElementById("services");
 
         try {
-            const data = await fetchJSON(`${API_BASE}/${STATION}?expand=false`);
+            const data = await fetchJSON(`${API_BASE}/${STATION}`);
 
-            document.getElementById("station").innerText = data.locationName;
+            document.getElementById("station").innerText =
+                `${data.locationName} (${data.crs || STATION})`;
 
             if (!data.trainServices || data.trainServices.length === 0) {
                 servicesDiv.innerHTML = "<div>No live departures</div>";
@@ -136,18 +139,23 @@
             }
 
             servicesDiv.innerHTML = data.trainServices.map(svc => {
-                const dest = svc.destination[0].locationName;
-                const std = svc.std;
-                const etd = svc.etd;
+                const dest = (svc.destination && svc.destination[0])
+                    ? svc.destination[0].locationName
+                    : "Unknown";
+                const std = svc.std || "";
+                const etd = svc.etd || "";
                 const plat = svc.platform || "-";
                 const operator = svc.operator || "";
-                const via = svc.destination[0].via || "";
+                const via = (svc.destination && svc.destination[0] && svc.destination[0].via)
+                    ? svc.destination[0].via
+                    : "";
 
-                // ⭐ Calling points from subsequentCallingPoints
+                // Calling points from Darwin subsequentCallingPoints
                 let callingPoints = "";
                 if (svc.subsequentCallingPoints &&
                     svc.subsequentCallingPoints.length > 0 &&
-                    svc.subsequentCallingPoints[0].callingPoint) {
+                    svc.subsequentCallingPoints[0].callingPoint &&
+                    svc.subsequentCallingPoints[0].callingPoint.length > 0) {
 
                     callingPoints = svc.subsequentCallingPoints[0].callingPoint
                         .map(cp => cp.locationName)
@@ -155,9 +163,9 @@
                 }
 
                 let cls = "on-time";
-                if (etd.includes("Delayed")) cls = "delayed";
-                if (etd.includes("Cancelled")) cls = "cancelled";
-                if (etd.includes("Arrived")) cls = "arrived";
+                if (etd.toLowerCase().includes("delayed")) cls = "delayed";
+                if (etd.toLowerCase().includes("cancelled")) cls = "cancelled";
+                if (etd.toLowerCase().includes("arrived")) cls = "arrived";
 
                 return `
                     <div class="row">
@@ -179,7 +187,8 @@
 
         } catch (err) {
             console.error(err);
-            servicesDiv.innerHTML = "<div style='color:#888'>Unable to load live data</div>";
+            servicesDiv.innerHTML =
+                "<div style='color:#888'>Unable to load live data</div>";
         }
     }
 
