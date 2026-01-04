@@ -19,7 +19,6 @@
             background: #000;
             border: 4px solid #222;
             padding: 20px;
-            box-shadow: 0 0 25px #ffcc33;
         }
 
         .header {
@@ -36,14 +35,12 @@
             letter-spacing: 2px;
             text-transform: uppercase;
             color: #ffcc33;
-            text-shadow: 0 0 8px #ffcc33;
         }
 
         #clock {
             font-size: 2.2rem;
             font-family: monospace;
             color: #ffcc33;
-            text-shadow: 0 0 8px #ffcc33;
         }
 
         .row {
@@ -51,53 +48,60 @@
             grid-template-columns: 120px 1fr 80px 160px;
             padding: 12px 0;
             border-bottom: 1px solid #111;
-            font-size: 1.6rem;
+            font-size: 1.4rem;
             letter-spacing: 1px;
         }
 
         .time, .dest, .plat, .etd {
-            text-shadow: 0 0 6px #ffcc33;
+            color: #ffcc33;
         }
 
         .plat {
             text-align: center;
-            color: #ffcc33;
         }
 
         .etd {
             text-align: right;
         }
 
-        .on-time {
-            color: #00ff88;
-            text-shadow: 0 0 6px #00ff88;
+        .on-time { color: #00ff88; }
+        .delayed { color: #ff8800; }
+        .cancelled { color: #ff0033; }
+
+        .via {
+            font-size: 1.1rem;
+            color: #ffaa33;
+            margin-top: 4px;
         }
 
-        .delayed {
-            color: #ff8800;
-            text-shadow: 0 0 6px #ff8800;
+        .operator {
+            font-size: 1rem;
+            color: #888;
+            margin-top: 3px;
         }
 
-        .cancelled {
-            color: #ff0033;
-            text-shadow: 0 0 6px #ff0033;
+        .calling-points {
+            font-size: 1rem;
+            color: #bbb;
+            white-space: nowrap;
+            overflow: hidden;
+            width: 100%;
+            box-sizing: border-box;
         }
 
-        #banner {
-            text-align: center;
-            background: #220000;
-            color: #ff4444;
-            padding: 6px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            font-weight: bold;
-            letter-spacing: 1px;
+        .scroll {
+            display: inline-block;
+            padding-left: 100%;
+            animation: scroll-left 18s linear infinite;
+        }
+
+        @keyframes scroll-left {
+            from { transform: translateX(0); }
+            to { transform: translateX(-100%); }
         }
     </style>
 </head>
 <body>
-
-<div id="banner">LOADING LIVE DATA…</div>
 
 <div class="board">
     <div class="header">
@@ -109,9 +113,6 @@
 </div>
 
 <script>
-    const CRS = "LIV";
-
-    // GitHub Pages JSON feed (updated every minute by GitHub Actions)
     const API_URL = "https://rczpmsj27f-star.github.io/railboard/departures.json";
 
     // Clock
@@ -122,7 +123,6 @@
 
     async function loadDepartures() {
         const servicesDiv = document.getElementById("services");
-        const banner = document.getElementById("banner");
 
         try {
             const response = await fetch(API_URL + "?t=" + Date.now());
@@ -133,13 +133,24 @@
                 return;
             }
 
-            banner.innerText = "LIVE DATA – GITHUB SYNCED";
-
             servicesDiv.innerHTML = data.trainServices.map(svc => {
                 const dest = svc.destination[0].locationName;
                 const std = svc.std;
                 const etd = svc.etd;
                 const plat = svc.platform || "-";
+                const operator = svc.operator || "";
+                const via = svc.destination[0].via || "";
+
+                // Build calling points scroll text
+                let callingPoints = "";
+                if (svc.subsequentCallingPoints &&
+                    svc.subsequentCallingPoints.length > 0 &&
+                    svc.subsequentCallingPoints[0].callingPoint) {
+
+                    callingPoints = svc.subsequentCallingPoints[0].callingPoint
+                        .map(cp => cp.locationName)
+                        .join(" • ");
+                }
 
                 let cls = "on-time";
                 if (etd.includes("Delayed")) cls = "delayed";
@@ -148,7 +159,15 @@
                 return `
                     <div class="row">
                         <div class="time">${std}</div>
-                        <div class="dest">${dest}</div>
+                        <div class="dest">
+                            ${dest}
+                            ${via ? `<div class="via">via ${via}</div>` : ""}
+                            ${operator ? `<div class="operator">${operator}</div>` : ""}
+                            ${callingPoints ? `
+                                <div class="calling-points">
+                                    <span class="scroll">${callingPoints}</span>
+                                </div>` : ""}
+                        </div>
                         <div class="plat">${plat}</div>
                         <div class="etd ${cls}">${etd}</div>
                     </div>
@@ -157,7 +176,6 @@
 
         } catch (err) {
             console.error(err);
-            banner.innerText = "OFFLINE – DATA UNAVAILABLE";
             servicesDiv.innerHTML = "<div style='color:#888'>Unable to load live data</div>";
         }
     }
