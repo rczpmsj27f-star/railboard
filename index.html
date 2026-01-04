@@ -141,7 +141,26 @@ async function loadDepartures() {
 
         if (!data.trainServices) return;
 
-        data.trainServices.slice(0, 10).forEach(service => {
+        data.trainServices.slice(0, 20).forEach(service => {
+
+            // --- CLEAN FIX: Skip terminating services ---
+            const origin = service.origin?.[0]?.locationName || "";
+            const destinationRaw = service.destination?.[0]?.locationName || "";
+
+            if (origin === "Manchester Piccadilly" && destinationRaw === "Manchester Piccadilly") {
+                return;
+            }
+
+            // --- CLEAN FIX: Determine the REAL destination ---
+            let destination = destinationRaw;
+
+            if (destination === "Manchester Piccadilly") {
+                const onward = service.subsequentCallingPoints?.[0]?.callingPoint?.[0]?.locationName;
+                if (onward) destination = onward;
+            }
+
+            if (!destination) return;
+
             const row = document.createElement("tr");
 
             const isCancelled = service.isCancelled;
@@ -149,7 +168,7 @@ async function loadDepartures() {
 
             row.innerHTML = `
                 <td>${service.std || ""}</td>
-                <td>${service.destination?.[0]?.locationName || ""}</td>
+                <td>${destination}</td>
                 <td>${service.platform || ""}</td>
                 <td class="${isCancelled ? "cancelled" : (etd !== "On time" ? "etd-delayed" : "")}">
                     ${isCancelled ? "Cancelled" : etd}
