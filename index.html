@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>LED Board</title>
+    <title>LED Board – Manchester Piccadilly</title>
 
     <style>
         body {
@@ -123,7 +123,8 @@
         const servicesDiv = document.getElementById("services");
 
         try {
-            const data = await fetchJSON(`${API_BASE}/LIV?expand=false`);
+            // CHANGE TO MAN
+            const data = await fetchJSON(`${API_BASE}/MAN?expand=false`);
 
             // Auto-detect station name
             document.getElementById("station").innerText = data.locationName;
