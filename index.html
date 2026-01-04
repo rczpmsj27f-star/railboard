@@ -131,19 +131,23 @@
         // Show raw JSON for debugging
         document.getElementById("debug").textContent = JSON.stringify(data, null, 2);
 
-        // Try all known Darwin shapes
-        const services =
-          data?.GetStationBoardResult?.trainServices?.service ||
-          data?.GetStationBoardResult?.trainServices ||
-          data?.trainServices?.service ||
-          data?.trainServices ||
-          [];
+        // Your worker returns: { trainServices: [ ... ] }
+        let services = data?.trainServices || [];
+
+        // 🔥 FILTER OUT services terminating at Manchester Piccadilly
+        services = services.filter(service => {
+          const dest =
+            service.destination?.location?.[0]?.locationName ||
+            service.destination?.[0]?.locationName ||
+            "";
+          return dest.toLowerCase() !== "manchester piccadilly";
+        });
 
         const tbody = document.getElementById("rows");
         tbody.innerHTML = "";
 
         if (!Array.isArray(services) || services.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4">No services returned</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="4">No departures available</td></tr>`;
           return;
         }
 
