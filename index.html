@@ -3,197 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live Departures</title>
-
+  <title>Manchester Piccadilly Departures</title>
   <style>
     body {
-      margin: 0;
-      background: #111;
-      font-family: "Segoe UI", Arial, sans-serif;
-      color: #f8f8f8;
-    }
-
-    header {
-      text-align: center;
-      padding: 20px 0;
       background: #000;
-      border-bottom: 3px solid #1a1a1a;
-    }
-
-    h1 {
-      font-size: 2.4rem;
+      color: #ffcc00;
+      font-family: "Courier New", monospace;
       margin: 0;
-      letter-spacing: 1px;
+      padding: 20px;
     }
-
-    h2 {
-      margin: 5px 0 10px;
-      font-weight: 300;
-      color: #ccc;
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 28px;
     }
-
-    #last-updated {
-      font-size: 0.9rem;
-      color: #888;
-    }
-
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
+      font-size: 22px;
     }
-
+    th, td {
+      padding: 8px 10px;
+    }
     th {
-      background: #222;
-      padding: 12px;
-      font-size: 1rem;
-      text-transform: uppercase;
-      border-bottom: 2px solid #333;
+      border-bottom: 2px solid #ffcc00;
+      text-align: left;
     }
-
-    td {
-      padding: 14px 10px;
-      font-size: 1.2rem;
-      border-bottom: 1px solid #222;
-    }
-
-    tr:nth-child(even) {
-      background: #181818;
-    }
-
-    .status {
-      font-weight: bold;
-    }
-
-    .status.on-time {
-      color: #4caf50;
-    }
-
-    .status.delayed {
-      color: #ff9800;
-    }
-
-    .status.cancelled {
-      color: #ff5252;
-    }
-
-    .platform {
-      text-align: center;
-      font-weight: bold;
-    }
-
-    #debug {
-      background: #000;
-      color: #0f0;
-      padding: 20px;
-      font-size: 12px;
-      white-space: pre-wrap;
-      overflow-y: auto;
-      height: 300px;
-      border-top: 2px solid #333;
-      margin-top: 20px;
+    tr {
+      border-bottom: 1px solid #333;
     }
   </style>
 </head>
-
 <body>
 
-  <header>
-    <h1 id="station-title">Live Departures</h1>
-    <h2 id="station-subtitle"></h2>
-    <div id="last-updated"></div>
-  </header>
+  <h1>Manchester Piccadilly – Departures</h1>
 
-  <main>
-    <table id="board">
-      <thead>
-        <tr>
-          <th>Time</th>
-          <th>Destination</th>
-          <th>Platform</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
-  </main>
-
-  <pre id="debug"></pre>
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Destination</th>
+        <th>Platform</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="departures"></tbody>
+  </table>
 
   <script>
-    // Read CRS from URL, default to MAN
-    const params = new URLSearchParams(window.location.search);
-    const CRS = (params.get("crs") || "MAN").toUpperCase();
+    async function loadDepartures() {
+      const response = await fetch(
+        "https://your-worker-url/api/departures?crs=MAN&numRows=20"
+      );
 
-    document.getElementById("station-title").textContent = CRS + " Departures";
+      const data = await response.json();
 
-    const API_URL =
-      `https://newrail.trr4qy5vhk.workers.dev/api/departures?crs=${CRS}&numRows=150`;
+      // Darwin returns arrivals + departures mixed.
+      // Filter out arrivals INTO Manchester Piccadilly.
+      const services = (data.trainServices || []).filter(s => {
+        return s.destination && s.destination.length > 0;
+      });
 
-    async function loadBoard() {
-      try {
-        const res = await fetch(API_URL);
-        const data = await res.json();
+      const tbody = document.getElementById("departures");
+      tbody.innerHTML = "";
 
-        // Show raw JSON for debugging
-        document.getElementById("debug").textContent =
-          JSON.stringify(data, null, 2);
+      services.slice(0, 20).forEach(service => {
+        const time = service.std || "";
+        const dest = service.destination[0].locationName || "";
+        const plat = service.platform || "-";
+        const status = service.etd || "";
 
-        let services = data?.trainServices || [];
-
-        // Filter out services terminating at this station
-        services = services.filter(service => {
-          const dest =
-            service.destination?.location?.[0]?.locationName ||
-            service.destination?.[0]?.locationName ||
-            "";
-          return dest.toLowerCase() !== CRS.toLowerCase();
-        });
-
-        const tbody = document.getElementById("rows");
-        tbody.innerHTML = "";
-
-        if (!Array.isArray(services) || services.length === 0) {
-          tbody.innerHTML = `<tr><td colspan="4">No departures available</td></tr>`;
-          return;
-        }
-
-        services.forEach(service => {
-          const std = service.std || "--";
-          const dest =
-            service.destination?.location?.[0]?.locationName ||
-            service.destination?.[0]?.locationName ||
-            "Unknown";
-
-          const plat = service.platform || "-";
-          const etd = service.etd || "Unknown";
-
-          let statusClass = "on-time";
-          if (etd === "Cancelled") statusClass = "cancelled";
-          else if (etd !== "On time" && etd !== "No report") statusClass = "delayed";
-
-          const row = `
-            <tr>
-              <td>${std}</td>
-              <td>${dest}</td>
-              <td class="platform">${plat}</td>
-              <td class="status ${statusClass}">${etd}</td>
-            </tr>
-          `;
-
-          tbody.insertAdjacentHTML("beforeend", row);
-        });
-
-        document.getElementById("last-updated").textContent =
-          "Updated: " + new Date().toLocaleTimeString();
-
-      } catch (err) {
-        console.error("Error loading board:", err);
-      }
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${time}</td>
+          <td>${dest}</td>
+          <td>${plat}</td>
+          <td>${status}</td>
+        `;
+        tbody.appendChild(row);
+      });
     }
 
-    loadBoard();
-    setInterval(loadBoard, 30000);
+    loadDepartures();
+    setInterval(loadDepartures, 30000); // refresh every 30s
   </script>
 
 </body>
