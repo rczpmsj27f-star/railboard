@@ -128,15 +128,15 @@
             const response = await fetch(API_URL + "?t=" + Date.now());
             const data = await response.json();
 
-            if (!data.services || data.services.length === 0) {
+            if (!data.trainServices || data.trainServices.length === 0) {
                 servicesDiv.innerHTML = "<div>No live departures</div>";
                 return;
             }
 
             banner.innerText = "LIVE DATA – GITHUB SYNCED";
 
-            servicesDiv.innerHTML = data.services.map(svc => {
-                const dest = svc.destination_name;
+            servicesDiv.innerHTML = data.trainServices.map(svc => {
+                const dest = svc.destination[0].locationName;
                 const std = svc.std;
                 const etd = svc.etd;
                 const plat = svc.platform || "-";
@@ -163,7 +163,7 @@
     }
 
     loadDepartures();
-    setInterval(loadDepartures, 30000); // refresh every 30 seconds
+    setInterval(loadDepartures, 30000);
 </script>
 
 </body>
