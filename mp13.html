@@ -245,10 +245,8 @@ function buildFirstClassLabel(service) {
 }
 
 function getAccurateLocation(service) {
-    // 1. Live Darwin "present location"
     if (service.locationName) return service.locationName;
 
-    // 2. Most recent passed station
     if (service.previousCallingPoints?.length > 0) {
         const groups = service.previousCallingPoints;
         const lastGroup = groups[groups.length - 1];
@@ -256,7 +254,6 @@ function getAccurateLocation(service) {
         if (lastPoint?.locationName) return lastPoint.locationName;
     }
 
-    // 3. Fallback: approaching next station
     if (service.subsequentCallingPoints?.length > 0) {
         const next = service.subsequentCallingPoints[0].callingPoint[0];
         if (next?.locationName) return `approaching ${next.locationName}`;
@@ -276,7 +273,6 @@ async function loadPlatform13() {
 
         if (!data.trainServices) return;
 
-        // STRICT: Only platform 13
         const services = data.trainServices
             .filter(s => s.platform && s.platform.trim().startsWith("13"))
             .slice(0, 3);
@@ -291,8 +287,6 @@ async function loadPlatform13() {
         // TRAIN 1 — FULL DETAILS
         // -------------------------
         const service = services[0];
-
-        const platform = service.platform?.trim() || "";
 
         const destinationRaw = service.destination?.[0]?.locationName || "";
         const hasOnward = service.subsequentCallingPoints?.[0]?.callingPoint?.length > 0;
@@ -309,7 +303,13 @@ async function loadPlatform13() {
         let expectedTime = "";
         let hasArrived = false;
 
-        if (status.toLowerCase() === "arrived" || service.ata) {
+        // ARRIVAL FIX — covers all Darwin arrival patterns
+        if (
+            status.toLowerCase() === "arrived" ||
+            status.toLowerCase() === "departed" ||
+            status === "00:00" ||
+            service.ata
+        ) {
             hasArrived = true;
             status = "Arrived";
             statusClass = "arrived";
@@ -412,8 +412,6 @@ async function loadPlatform13() {
         if (services.length > 1) {
             const s2 = services[1];
 
-            const platform2 = s2.platform?.trim() || "";
-
             const dest2raw = s2.destination?.[0]?.locationName || "";
             let dest2 = dest2raw;
             if (dest2raw === "Manchester Piccadilly" && s2.subsequentCallingPoints?.[0]?.callingPoint?.length > 0) {
@@ -425,7 +423,12 @@ async function loadPlatform13() {
             let st2class = "";
             let st2expected = "";
 
-            if (s2.etd?.toLowerCase() === "arrived" || s2.ata) {
+            if (
+                st2.toLowerCase() === "arrived" ||
+                st2.toLowerCase() === "departed" ||
+                st2 === "00:00" ||
+                s2.ata
+            ) {
                 st2 = "Arrived";
                 st2class = "arrived";
             } else if (s2.isCancelled) {
@@ -455,8 +458,6 @@ async function loadPlatform13() {
         if (services.length > 2) {
             const s3 = services[2];
 
-            const platform3 = s3.platform?.trim() || "";
-
             const dest3raw = s3.destination?.[0]?.locationName || "";
             let dest3 = dest3raw;
             if (dest3raw === "Manchester Piccadilly" && s3.subsequentCallingPoints?.[0]?.callingPoint?.length > 0) {
@@ -468,7 +469,12 @@ async function loadPlatform13() {
             let st3class = "";
             let st3expected = "";
 
-            if (s3.etd?.toLowerCase() === "arrived" || s3.ata) {
+            if (
+                st3.toLowerCase() === "arrived" ||
+                st3.toLowerCase() === "departed" ||
+                st3 === "00:00" ||
+                s3.ata
+            ) {
                 st3 = "Arrived";
                 st3class = "arrived";
             } else if (s3.isCancelled) {
